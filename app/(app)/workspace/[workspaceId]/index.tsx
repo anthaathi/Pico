@@ -121,7 +121,7 @@ export default function WorkspaceScreen() {
       setSending(true);
       try {
         const sessionId = await ensureSession(workspaceId);
-        await sendPrompt.mutateAsync({ sessionId, message: text });
+        await sendPrompt.mutateAsync({ sessionId, message: text, workspaceId });
         router.replace(`/workspace/${workspaceId}/s/${sessionId}`);
       } catch (e) {
         console.error('Failed to create session or send prompt:', e);

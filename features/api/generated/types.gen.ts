@@ -43,7 +43,9 @@ export type AgentForkRequest = {
 export type AgentMessageRequest = {
     images?: Array<ImageContent> | null;
     message: string;
+    session_file?: string | null;
     session_id: string;
+    workspace_id?: string | null;
 };
 
 export type AgentNewSessionRequest = {
@@ -54,8 +56,17 @@ export type AgentNewSessionRequest = {
 export type AgentPromptRequest = {
     images?: Array<ImageContent> | null;
     message: string;
+    session_file?: string | null;
     session_id: string;
     streaming_behavior?: string | null;
+    workspace_id?: string | null;
+};
+
+export type AgentRuntimeStatus = {
+    can_install_pi: boolean;
+    node: RuntimeDependencyStatus;
+    pi: RuntimeDependencyStatus;
+    ready: boolean;
 };
 
 export type AgentSessionCommandResponse = {
@@ -126,6 +137,28 @@ export type CreateWorkspaceRequest = {
     path: string;
     startup_script?: string | null;
     workspace_enabled?: boolean | null;
+};
+
+export type CustomModelEntry = {
+    contextWindow?: number | null;
+    id: string;
+    input?: Array<string> | null;
+    maxTokens?: number | null;
+    name?: string | null;
+    reasoning?: boolean | null;
+};
+
+export type CustomModelsConfig = {
+    providers?: {
+        [key: string]: CustomProvider;
+    };
+};
+
+export type CustomProvider = {
+    api?: string | null;
+    apiKey?: string | null;
+    baseUrl?: string | null;
+    models?: Array<CustomModelEntry>;
 };
 
 export type ErrorBody = {
@@ -313,6 +346,20 @@ export type PathCompletion = {
 
 export type RefreshRequest = {
     refresh_token: string;
+};
+
+export type RuntimeDependencyStatus = {
+    command: string;
+    details?: string | null;
+    installed: boolean;
+    path?: string | null;
+    version?: string | null;
+};
+
+export type SaveCustomModelsRequest = {
+    providers: {
+        [key: string]: CustomProvider;
+    };
 };
 
 export type SessionDetail = {
@@ -788,6 +835,29 @@ export type PromptResponses = {
     200: unknown;
 };
 
+export type RuntimeStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/agent/runtime-status';
+};
+
+export type RuntimeStatusErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type RuntimeStatusResponses = {
+    /**
+     * Pi and Node runtime status
+     */
+    200: AgentRuntimeStatus;
+};
+
+export type RuntimeStatusResponse = RuntimeStatusResponses[keyof RuntimeStatusResponses];
+
 export type GetSessionStatsData = {
     body: AgentSessionIdRequest;
     path?: never;
@@ -1246,6 +1316,34 @@ export type CheckSessionError = CheckSessionErrors[keyof CheckSessionErrors];
 export type CheckSessionResponses = {
     /**
      * Session valid
+     */
+    200: unknown;
+};
+
+export type GetCustomModelsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/custom-models';
+};
+
+export type GetCustomModelsResponses = {
+    /**
+     * Custom models config
+     */
+    200: unknown;
+};
+
+export type SaveCustomModelsData = {
+    body: SaveCustomModelsRequest;
+    path?: never;
+    query?: never;
+    url: '/api/custom-models';
+};
+
+export type SaveCustomModelsResponses = {
+    /**
+     * Saved
      */
     200: unknown;
 };

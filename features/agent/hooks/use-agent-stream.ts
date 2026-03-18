@@ -137,10 +137,14 @@ export function useAgentStream() {
       activeServerId && serverAddress
         ? `${activeServerId}:${serverAddress}`
         : null;
-    if (streamTargetRef.current !== nextTarget) {
+    const previousTarget = streamTargetRef.current;
+    if (previousTarget !== nextTarget) {
       streamTargetRef.current = nextTarget;
       lastEventIdRef.current = null;
       retryCountRef.current = 0;
+      if (previousTarget !== null) {
+        useAgentStore.getState().setConnectionState(createConnectionState("idle"));
+      }
     }
   }, [activeServerId, serverAddress]);
 
@@ -336,15 +340,20 @@ export function useAgentStream() {
       disconnectHandled = false;
       connectionInstance += 1;
       const currentConnection = connectionInstance;
+      const previousConnection = useAgentStore.getState().connection;
+      const isReconnectAttempt =
+        retryCountRef.current > 0 ||
+        previousConnection.status === "disconnected" ||
+        previousConnection.status === "reconnecting" ||
+        previousConnection.disconnectedAt !== null;
 
       setConnectionState(
         createConnectionState(
-          retryCountRef.current > 0 ? "reconnecting" : "connecting",
+          isReconnectAttempt ? "reconnecting" : "connecting",
           {
             retryAttempt: retryCountRef.current,
-            lastDisconnectReason:
-              useAgentStore.getState().connection.lastDisconnectReason,
-            disconnectedAt: useAgentStore.getState().connection.disconnectedAt,
+            lastDisconnectReason: previousConnection.lastDisconnectReason,
+            disconnectedAt: previousConnection.disconnectedAt,
           },
         ),
       );
@@ -424,7 +433,6 @@ export function useAgentStream() {
       connectionInstance += 1;
       clearReconnectTimer();
       cleanup();
-      setConnectionState(createConnectionState("idle"));
     };
   }, [
     activeServerId,
@@ -434,4 +442,10 @@ export function useAgentStream() {
     refreshActiveServerSession,
     serverAddress,
   ]);
+
+  useEffect(() => {
+    return () => {
+      useAgentStore.getState().setConnectionState(createConnectionState("idle"));
+    };
+  }, []);
 }

@@ -89,6 +89,7 @@ export default class EventSource {
       if (this.readyState === EventSource.CLOSED) return;
 
       if (
+        xhr.readyState !== XMLHttpRequest.HEADERS_RECEIVED &&
         xhr.readyState !== XMLHttpRequest.LOADING &&
         xhr.readyState !== XMLHttpRequest.DONE
       ) {
@@ -100,7 +101,12 @@ export default class EventSource {
           this.readyState = EventSource.OPEN;
           this.dispatch("open", { type: "open" });
         }
-        this.processChunk(xhr.responseText ?? "");
+        if (
+          xhr.readyState === XMLHttpRequest.LOADING ||
+          xhr.readyState === XMLHttpRequest.DONE
+        ) {
+          this.processChunk(xhr.responseText ?? "");
+        }
       } else if (xhr.status !== 0) {
         this.emitError(xhr.responseText, xhr.status, xhr.readyState);
       }

@@ -11,9 +11,12 @@ const PANEL_MIN = 180;
 const PANEL_MAX = 480;
 const RAIL_WIDTH = 28;
 const SIDEBAR_WIDTH_KEY = "workspace_sidebar_width";
+const SIDEBAR_COLLAPSED_KEY = "workspace_sidebar_collapsed";
 
 let sidebarWidthCache = PANEL_DEFAULT;
 let sidebarWidthLoaded = false;
+let sidebarCollapsedCache = false;
+let sidebarCollapsedLoaded = false;
 
 function clampWidth(width: number) {
   return Math.max(PANEL_MIN, Math.min(PANEL_MAX, Math.round(width)));
@@ -55,6 +58,34 @@ async function saveStoredWidth(width: number) {
   } catch {}
 }
 
+async function loadStoredCollapsed(): Promise<boolean | null> {
+  try {
+    let value: string | null = null;
+    if (Platform.OS === "web") {
+      if (typeof localStorage === "undefined") return null;
+      value = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+    } else {
+      value = await SecureStore.getItemAsync(SIDEBAR_COLLAPSED_KEY);
+    }
+    if (value === "true") return true;
+    if (value === "false") return false;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function saveStoredCollapsed(collapsed: boolean) {
+  try {
+    if (Platform.OS === "web") {
+      if (typeof localStorage === "undefined") return;
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
+      return;
+    }
+    await SecureStore.setItemAsync(SIDEBAR_COLLAPSED_KEY, String(collapsed));
+  } catch {}
+}
+
 interface WorkspaceSidebarProps {
   children: ReactNode;
 }
@@ -69,7 +100,7 @@ export function WorkspaceSidebar({ children }: WorkspaceSidebarProps) {
   const railHoverBg = isDark ? "#202020" : "#F2F2F2";
   const iconColor = isDark ? "#8B8685" : colors.textTertiary;
 
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(sidebarCollapsedCache);
   const [isResizing, setIsResizing] = useState(false);
   const [panelWidth, setPanelWidth] = useState(sidebarWidthCache);
   const panelWidthRef = useRef(sidebarWidthCache);
@@ -78,22 +109,40 @@ export function WorkspaceSidebar({ children }: WorkspaceSidebarProps) {
   useEffect(() => {
     let cancelled = false;
 
+    const promises: Promise<void>[] = [];
+
     if (sidebarWidthLoaded) {
       const nextWidth = clampWidth(sidebarWidthCache);
       panelWidthRef.current = nextWidth;
       setPanelWidth(nextWidth);
-      return;
+    } else {
+      promises.push(
+        loadStoredWidth().then((storedWidth) => {
+          if (cancelled) return;
+          const nextWidth = storedWidth ?? PANEL_DEFAULT;
+          sidebarWidthCache = nextWidth;
+          sidebarWidthLoaded = true;
+          panelWidthRef.current = nextWidth;
+          setPanelWidth(nextWidth);
+        }),
+      );
     }
 
-    void loadStoredWidth().then((storedWidth) => {
-      if (cancelled) return;
+    if (!sidebarCollapsedLoaded) {
+      promises.push(
+        loadStoredCollapsed().then((stored) => {
+          if (cancelled) return;
+          const collapsed = stored ?? false;
+          sidebarCollapsedCache = collapsed;
+          sidebarCollapsedLoaded = true;
+          setIsCollapsed(collapsed);
+        }),
+      );
+    }
 
-      const nextWidth = storedWidth ?? PANEL_DEFAULT;
-      sidebarWidthCache = nextWidth;
-      sidebarWidthLoaded = true;
-      panelWidthRef.current = nextWidth;
-      setPanelWidth(nextWidth);
-    });
+    if (promises.length > 0) {
+      void Promise.all(promises);
+    }
 
     return () => {
       cancelled = true;
@@ -168,7 +217,14 @@ export function WorkspaceSidebar({ children }: WorkspaceSidebarProps) {
         ]}
       >
         <Pressable
-          onPress={() => setIsCollapsed((prev) => !prev)}
+          onPress={() => {
+            setIsCollapsed((prev) => {
+              const next = !prev;
+              sidebarCollapsedCache = next;
+              void saveStoredCollapsed(next);
+              return next;
+            });
+          }}
           accessibilityRole="button"
           accessibilityLabel={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           {...{

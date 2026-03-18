@@ -3,4 +3,5 @@ pub mod connection;
 pub mod git;
 pub mod package;
 pub mod pairing;
+pub mod runtime;
 pub mod session;

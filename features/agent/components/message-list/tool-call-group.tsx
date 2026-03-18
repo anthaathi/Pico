@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { ChevronDown, ChevronRight, Columns2, Rows2 } from "lucide-react-native";
 
@@ -32,6 +32,93 @@ const SINGLE_VERB: Record<string, string> = {
   crawl: "Crawl",
   subagent: "Sub-agent",
 };
+
+function AnimatedNumber({ value, style }: { value: number; style?: any }) {
+  const prevRef = useRef(value);
+  const slideOut = useRef(new Animated.Value(0)).current;
+  const slideIn = useRef(new Animated.Value(0)).current;
+  const [display, setDisplay] = useState({ prev: value, next: value });
+  const animating = useRef(false);
+
+  useEffect(() => {
+    if (value === prevRef.current) return;
+    const prev = prevRef.current;
+    prevRef.current = value;
+    setDisplay({ prev, next: value });
+    animating.current = true;
+    slideOut.setValue(0);
+    slideIn.setValue(1);
+    Animated.parallel([
+      Animated.timing(slideOut, {
+        toValue: -1,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideIn, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      animating.current = false;
+      setDisplay({ prev: value, next: value });
+    });
+  }, [value, slideOut, slideIn]);
+
+  const height = 18;
+
+  if (display.prev === display.next && !animating.current) {
+    return <Text style={style}>{display.next}</Text>;
+  }
+
+  return (
+    <View style={{ height, overflow: "hidden", justifyContent: "center" }}>
+      <Animated.Text
+        style={[
+          style,
+          {
+            position: "absolute",
+            opacity: slideOut.interpolate({
+              inputRange: [-1, 0],
+              outputRange: [0, 1],
+            }),
+            transform: [
+              {
+                translateY: slideOut.interpolate({
+                  inputRange: [-1, 0],
+                  outputRange: [-height, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        {display.prev}
+      </Animated.Text>
+      <Animated.Text
+        style={[
+          style,
+          {
+            opacity: slideIn.interpolate({
+              inputRange: [0, 1],
+              outputRange: [1, 0],
+            }),
+            transform: [
+              {
+                translateY: slideIn.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, height],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        {display.next}
+      </Animated.Text>
+    </View>
+  );
+}
 
 function basename(path: string): string {
   const parts = path.replace(/\\/g, "/").split("/");
@@ -86,6 +173,25 @@ function multiGroupLabel(toolName: string, count: number): string {
   const fn = MULTI_GROUP_LABELS[toolName];
   if (fn) return fn(count);
   return `${count}× ${toolName}`;
+}
+
+const MULTI_GROUP_PARTS: Record<string, { before: string; after: string }> = {
+  read: { before: "Read ", after: " files" },
+  edit: { before: "Edited ", after: " files" },
+  write: { before: "Wrote ", after: " files" },
+  bash: { before: "Ran ", after: " commands" },
+  python: { before: "Ran Python ", after: " times" },
+  search: { before: "", after: " web searches" },
+  scrape: { before: "Scraped ", after: " pages" },
+  crawl: { before: "Crawled ", after: " sites" },
+  subagent: { before: "Ran ", after: " sub-agents" },
+};
+
+function multiGroupLabelParts(
+  toolName: string,
+  _count: number,
+): { before: string; after: string } {
+  return MULTI_GROUP_PARTS[toolName] ?? { before: "", after: `× ${toolName}` };
 }
 
 function BashToolCall({ tc }: { tc: ToolCallInfo }) {
@@ -787,13 +893,23 @@ export function ToolCallGroup({
   }
 
   const toggle = useCallback(() => setExpanded((v) => !v), []);
+  const groupParts = multiGroupLabelParts(toolName, calls.length);
 
   return (
     <View>
       <Pressable style={styles.row} onPress={toggle}>
-        <Text style={[styles.label, { color: textColor }]}>
-          {multiGroupLabel(toolName, calls.length)}
-        </Text>
+        <View style={styles.animatedLabelRow}>
+          {groupParts.before ? (
+            <Text style={[styles.label, { color: textColor }]}>{groupParts.before}</Text>
+          ) : null}
+          <AnimatedNumber
+            value={calls.length}
+            style={[styles.label, { color: textColor }]}
+          />
+          {groupParts.after ? (
+            <Text style={[styles.label, { color: textColor }]}>{groupParts.after}</Text>
+          ) : null}
+        </View>
       </Pressable>
 
       {expanded && (
@@ -860,6 +976,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: Fonts.sansBold,
     fontWeight: "bold",
+  },
+  animatedLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   singleLine: {
     fontSize: 13,

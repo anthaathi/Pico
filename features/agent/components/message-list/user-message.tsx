@@ -4,12 +4,7 @@ import { Colors, Fonts } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import type { ChatMessage } from "../../types";
 
-export function UserMessage({
-  message,
-}: {
-  message: ChatMessage;
-  animateOnMount?: boolean;
-}) {
+export function UserMessage({ message }: { message: ChatMessage }) {
   const colorScheme = useColorScheme() ?? "light";
   const colors = Colors[colorScheme];
   const isDark = colorScheme === "dark";

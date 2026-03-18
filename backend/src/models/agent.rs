@@ -27,12 +27,31 @@ pub struct AgentSessionCommandResponse {
     pub session: AgentSessionInfo,
 }
 
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct RuntimeDependencyStatus {
+    pub command: String,
+    pub installed: bool,
+    pub version: Option<String>,
+    pub path: Option<String>,
+    pub details: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct AgentRuntimeStatus {
+    pub ready: bool,
+    pub can_install_pi: bool,
+    pub node: RuntimeDependencyStatus,
+    pub pi: RuntimeDependencyStatus,
+}
+
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct AgentPromptRequest {
     pub session_id: String,
     pub message: String,
     pub images: Option<Vec<ImageContent>>,
     pub streaming_behavior: Option<String>,
+    pub workspace_id: Option<String>,
+    pub session_file: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
@@ -49,6 +68,8 @@ pub struct AgentMessageRequest {
     pub session_id: String,
     pub message: String,
     pub images: Option<Vec<ImageContent>>,
+    pub workspace_id: Option<String>,
+    pub session_file: Option<String>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

@@ -159,6 +159,8 @@ export function MessageList({ sessionId }: { sessionId: string }) {
     scrollRef.current?.scrollToEnd({ animated });
   }, []);
 
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleScroll = useCallback(
     (e: any) => {
       const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
@@ -178,20 +180,16 @@ export function MessageList({ sessionId }: { sessionId: string }) {
   );
 
   const handleContentSizeChange = useCallback(() => {
-    if (isNearBottomRef.current) {
-      setShowScrollButton(false);
-      scrollRef.current?.scrollToEnd({ animated: false });
-    }
+    if (!isNearBottomRef.current) return;
+    setShowScrollButton(false);
+    // Debounce: only one smooth scroll per frame to avoid jitter
+    // from rapid content size changes during streaming.
+    if (scrollTimerRef.current) return;
+    scrollTimerRef.current = setTimeout(() => {
+      scrollTimerRef.current = null;
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, 16);
   }, []);
-
-  useEffect(() => {
-    if (isNearBottomRef.current) {
-      const timer = setTimeout(() => {
-        scrollRef.current?.scrollToEnd({ animated: true });
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [messages.length]);
 
   const { visible, merged } = useMemo(
     () => mergeConsecutiveToolCalls(messages),
@@ -282,7 +280,7 @@ export function MessageList({ sessionId }: { sessionId: string }) {
               )}
 
               {msg.role === "user" ? (
-                <UserMessage message={msg} animateOnMount={animateOnMount} />
+                <UserMessage message={msg} />
               ) : (
                 <AssistantMessage
                   message={msg}

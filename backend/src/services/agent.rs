@@ -149,14 +149,19 @@ impl AgentManager {
             None
         };
 
-        if let Some(existing_key) = previous_key.as_ref() {
+        if previous_key.is_some() {
+            // Re-resolve after acquiring the lock — another caller may have
+            // already respawned and re-keyed the session under a new ID.
+            let re_resolved = self.resolve_session_id(session_id).await;
             let sessions = self.sessions.read().await;
-            if let Some(session) = sessions.get(existing_key) {
+            if let Some(session) = sessions.get(&re_resolved) {
                 if session.process.is_some() {
                     *session.last_activity.lock().await = Instant::now();
                     return Ok(Self::build_session_info(session));
                 }
             }
+            // Update previous_key so spawn_and_register removes the right entry.
+            previous_key = Some(re_resolved);
         }
 
         self.spawn_and_register(

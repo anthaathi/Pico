@@ -101,9 +101,11 @@ export default function SessionScreen() {
         sessionId,
         message: text,
         streamingBehavior: options?.queueBehavior ?? (isStreaming ? "steer" : undefined),
+        workspaceId: workspaceId ?? undefined,
+        sessionFile: sessionFile ?? undefined,
       });
     },
-    [inputBlockedByConnection, sessionId, isStreaming],
+    [inputBlockedByConnection, sessionId, isStreaming, workspaceId, sessionFile],
   );
 
   const handleAbort = useCallback(() => {

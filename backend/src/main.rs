@@ -23,6 +23,7 @@ use crate::db::Database;
 use crate::services::agent::AgentManager;
 use crate::services::connection::ConnectionInfo;
 use crate::services::pairing::PairingManager;
+use crate::services::runtime;
 
 const QR_ROTATE_MINUTES: u64 = 5;
 
@@ -79,6 +80,7 @@ const QR_ROTATE_MINUTES: u64 = 5;
         routes::git::discard,
         routes::git::commit,
         routes::agent::create_session,
+        routes::agent::runtime_status,
         routes::agent::touch_session,
         routes::agent::kill_session,
         routes::agent::list_sessions,
@@ -112,6 +114,8 @@ const QR_ROTATE_MINUTES: u64 = 5;
         routes::agent::set_session_name,
         routes::agent::get_commands,
         routes::agent::extension_ui_response,
+        routes::custom_models::get_custom_models,
+        routes::custom_models::save_custom_models,
     ),
     components(schemas(
         models::HealthResponse,
@@ -158,6 +162,8 @@ const QR_ROTATE_MINUTES: u64 = 5;
         models::GitCommitRequest,
         models::GitStashApplyRequest,
         models::agent::CreateAgentSessionRequest,
+        models::agent::RuntimeDependencyStatus,
+        models::agent::AgentRuntimeStatus,
         models::agent::TouchAgentSessionRequest,
         models::agent::AgentSessionIdRequest,
         models::agent::AgentSessionCommandResponse,
@@ -179,6 +185,10 @@ const QR_ROTATE_MINUTES: u64 = 5;
         services::agent::AgentSessionInfo,
         services::agent::ActiveSessionSummary,
         services::agent::StreamEvent,
+        routes::custom_models::CustomModelsConfig,
+        routes::custom_models::CustomProvider,
+        routes::custom_models::CustomModelEntry,
+        routes::custom_models::SaveCustomModelsRequest,
     )),
     modifiers(&SecurityAddon),
     tags(
@@ -190,6 +200,7 @@ const QR_ROTATE_MINUTES: u64 = 5;
         (name = "filesystem", description = "Filesystem path autocomplete"),
         (name = "git", description = "Git repository operations"),
         (name = "agent", description = "Pi coding agent RPC management"),
+        (name = "custom-models", description = "Custom model provider configuration"),
     ),
     info(
         title = "Pi Server",
@@ -253,6 +264,9 @@ async fn async_main() -> anyhow::Result<()> {
         tracing::error!("No password_hash configured in config.toml. Run with --hash-password <password> to generate one.");
         std::process::exit(1);
     }
+
+    let startup_runtime_status = runtime::get_agent_runtime_status(&config);
+    runtime::log_startup_runtime_status(&startup_runtime_status);
 
     let db = Database::new("pi-server.db")?;
     let conn_info = Arc::new(ConnectionInfo::gather(config.server.port));
@@ -332,6 +346,7 @@ async fn async_main() -> anyhow::Result<()> {
         .route("/git/commit", post(routes::git::commit))
         .route("/agent/sessions", post(routes::agent::create_session))
         .route("/agent/sessions", get(routes::agent::list_sessions))
+        .route("/agent/runtime-status", get(routes::agent::runtime_status))
         .route(
             "/agent/sessions/{session_id}/touch",
             post(routes::agent::touch_session),
@@ -405,6 +420,11 @@ async fn async_main() -> anyhow::Result<()> {
         .route(
             "/agent/extension-ui-response",
             post(routes::agent::extension_ui_response),
+        )
+        .route("/custom-models", get(routes::custom_models::get_custom_models))
+        .route(
+            "/custom-models",
+            axum::routing::put(routes::custom_models::save_custom_models),
         );
 
     let cors = CorsLayer::new()

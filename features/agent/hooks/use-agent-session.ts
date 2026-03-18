@@ -136,6 +136,8 @@ export function useSendPrompt() {
       sessionId: string;
       message: string;
       streamingBehavior?: PromptStreamingBehavior;
+      workspaceId?: string;
+      sessionFile?: string;
     }) => {
       const result =
         params.streamingBehavior === "steer"
@@ -143,6 +145,8 @@ export function useSendPrompt() {
               body: {
                 session_id: params.sessionId,
                 message: params.message,
+                workspace_id: params.workspaceId,
+                session_file: params.sessionFile,
               },
             })
           : params.streamingBehavior === "followUp"
@@ -150,12 +154,16 @@ export function useSendPrompt() {
                 body: {
                   session_id: params.sessionId,
                   message: params.message,
+                  workspace_id: params.workspaceId,
+                  session_file: params.sessionFile,
                 },
               })
             : await apiPrompt({
                 body: {
                   session_id: params.sessionId,
                   message: params.message,
+                  workspace_id: params.workspaceId,
+                  session_file: params.sessionFile,
                 },
               });
       if (result.error) throw new Error("Failed to send prompt");

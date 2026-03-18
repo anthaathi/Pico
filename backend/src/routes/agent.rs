@@ -12,6 +12,7 @@ use crate::models::agent::*;
 use crate::models::ApiResponse;
 use crate::routes::auth::require_auth;
 use crate::services::agent::{AgentSessionInfo, ActiveSessionSummary};
+use crate::services::runtime;
 use crate::services::session;
 
 fn auth_err(code: StatusCode, msg: String) -> (StatusCode, Json<ApiResponse<Value>>) {
@@ -87,7 +88,53 @@ async fn forward_command_with_session_refresh(
     }
 }
 
+async fn auto_touch(
+    state: &AppState,
+    session_id: &str,
+    workspace_id: Option<&str>,
+    session_file: Option<&str>,
+) -> Option<AgentSessionInfo> {
+    let workspace_id = workspace_id?;
+    let session_file = session_file?;
+
+    let workspace = state.db.get_workspace(workspace_id).ok()??;
+
+    state
+        .agent
+        .touch_session(session_id, session_file.to_string(), workspace_id.to_string(), workspace.path)
+        .await
+        .ok()
+}
+
 // --- Session Management ---
+
+#[utoipa::path(
+    get,
+    path = "/api/agent/runtime-status",
+    responses(
+        (status = 200, description = "Pi and Node runtime status", body = AgentRuntimeStatus),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "agent"
+)]
+pub async fn runtime_status(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> (StatusCode, Json<ApiResponse<AgentRuntimeStatus>>) {
+    if let Err((code, msg)) = require_auth(&state, &headers).await {
+        return (code, Json(ApiResponse::err(msg)));
+    }
+
+    let status = tokio::task::spawn_blocking({
+        let config = state.config.as_ref().clone();
+        move || runtime::get_agent_runtime_status(&config)
+    })
+    .await
+    .unwrap();
+
+    (StatusCode::OK, Json(ApiResponse::ok(status)))
+}
 
 #[utoipa::path(
     post,
@@ -107,6 +154,16 @@ pub async fn create_session(
 ) -> (StatusCode, Json<ApiResponse<AgentSessionInfo>>) {
     if let Err((code, msg)) = require_auth(&state, &headers).await {
         return (code, Json(ApiResponse::err(msg)));
+    }
+
+    let runtime_status = tokio::task::spawn_blocking({
+        let config = state.config.as_ref().clone();
+        move || runtime::get_agent_runtime_status(&config)
+    })
+    .await
+    .unwrap();
+    if let Some(message) = runtime::get_runtime_prerequisite_error(&runtime_status) {
+        return (StatusCode::PRECONDITION_FAILED, Json(ApiResponse::err(message)));
     }
 
     let workspace = match state.db.get_workspace(&req.workspace_id) {
@@ -167,6 +224,16 @@ pub async fn touch_session(
 ) -> (StatusCode, Json<ApiResponse<AgentSessionInfo>>) {
     if let Err((code, msg)) = require_auth(&state, &headers).await {
         return (code, Json(ApiResponse::err(msg)));
+    }
+
+    let runtime_status = tokio::task::spawn_blocking({
+        let config = state.config.as_ref().clone();
+        move || runtime::get_agent_runtime_status(&config)
+    })
+    .await
+    .unwrap();
+    if let Some(message) = runtime::get_runtime_prerequisite_error(&runtime_status) {
+        return (StatusCode::PRECONDITION_FAILED, Json(ApiResponse::err(message)));
     }
 
     let workspace = match state.db.get_workspace(&req.workspace_id) {
@@ -344,14 +411,23 @@ pub async fn prompt(
     }
 
     let mut cmd = json!({"type": "prompt", "message": req.message});
-    if let Some(images) = req.images {
+    if let Some(images) = &req.images {
         cmd["images"] = serde_json::to_value(images).unwrap_or_default();
     }
-    if let Some(behavior) = req.streaming_behavior {
+    if let Some(behavior) = &req.streaming_behavior {
         cmd["streamingBehavior"] = json!(behavior);
     }
 
-    forward_command(&state, &req.session_id, cmd).await
+    let result = forward_command(&state, &req.session_id, cmd.clone()).await;
+    if result.0 == StatusCode::INTERNAL_SERVER_ERROR {
+        if let Some(info) = auto_touch(&state, &req.session_id, req.workspace_id.as_deref(), req.session_file.as_deref()).await {
+            if let Err(err) = state.agent.emit_agent_state(&info.session_id).await {
+                tracing::warn!("Failed to emit agent_state after auto-touch: {err}");
+            }
+            return forward_command(&state, &req.session_id, cmd).await;
+        }
+    }
+    result
 }
 
 #[utoipa::path(
@@ -375,11 +451,20 @@ pub async fn steer(
     }
 
     let mut cmd = json!({"type": "steer", "message": req.message});
-    if let Some(images) = req.images {
+    if let Some(images) = &req.images {
         cmd["images"] = serde_json::to_value(images).unwrap_or_default();
     }
 
-    forward_command(&state, &req.session_id, cmd).await
+    let result = forward_command(&state, &req.session_id, cmd.clone()).await;
+    if result.0 == StatusCode::INTERNAL_SERVER_ERROR {
+        if let Some(info) = auto_touch(&state, &req.session_id, req.workspace_id.as_deref(), req.session_file.as_deref()).await {
+            if let Err(err) = state.agent.emit_agent_state(&info.session_id).await {
+                tracing::warn!("Failed to emit agent_state after auto-touch: {err}");
+            }
+            return forward_command(&state, &req.session_id, cmd).await;
+        }
+    }
+    result
 }
 
 #[utoipa::path(
@@ -403,11 +488,20 @@ pub async fn follow_up(
     }
 
     let mut cmd = json!({"type": "follow_up", "message": req.message});
-    if let Some(images) = req.images {
+    if let Some(images) = &req.images {
         cmd["images"] = serde_json::to_value(images).unwrap_or_default();
     }
 
-    forward_command(&state, &req.session_id, cmd).await
+    let result = forward_command(&state, &req.session_id, cmd.clone()).await;
+    if result.0 == StatusCode::INTERNAL_SERVER_ERROR {
+        if let Some(info) = auto_touch(&state, &req.session_id, req.workspace_id.as_deref(), req.session_file.as_deref()).await {
+            if let Err(err) = state.agent.emit_agent_state(&info.session_id).await {
+                tracing::warn!("Failed to emit agent_state after auto-touch: {err}");
+            }
+            return forward_command(&state, &req.session_id, cmd).await;
+        }
+    }
+    result
 }
 
 #[utoipa::path(

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated as RNAnimated,
   Pressable,
@@ -7,7 +7,7 @@ import {
   View,
 } from "react-native";
 import { ChevronDown, ChevronRight, Brain } from "lucide-react-native";
-import { Markdown } from "react-native-remark";
+import { useMarkdown, type useMarkdownHookOptions } from "react-native-marked";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -21,7 +21,7 @@ import { Colors, Fonts } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import type { ChatMessage, ToolCallInfo } from "../../types";
 import { ToolCallGroup, groupToolCalls } from "./tool-call-group";
-import { markdownDarkStyles, markdownLightStyles } from "../../theme";
+import { markedDarkOptions, markedLightOptions } from "../../theme";
 
 function StreamingCursor() {
   const scale = useSharedValue(1);
@@ -90,6 +90,12 @@ export function AssistantMessage({
   const hasThinking = !!message.thinking && message.thinking.length > 0;
   const hasToolCalls =
     !!effectiveToolCalls && effectiveToolCalls.length > 0;
+
+  const markdownOptions = useMemo<useMarkdownHookOptions>(
+    () => (isDark ? markedDarkOptions : markedLightOptions),
+    [isDark],
+  );
+  const markdownElements = useMarkdown(message.text, markdownOptions);
 
   const shouldAnimate = animateOnMount && !message.isStreaming;
 
@@ -188,11 +194,10 @@ export function AssistantMessage({
       )}
 
       {message.text.length > 0 && (
-        <View>
-          <Markdown
-            markdown={message.text}
-            customStyles={isDark ? markdownDarkStyles : markdownLightStyles}
-          />
+        <View style={styles.markdownWrap}>
+          {markdownElements.map((el, i) => (
+            <Fragment key={i}>{el}</Fragment>
+          ))}
           {message.isStreaming && !hasToolCalls && <StreamingCursor />}
         </View>
       )}
@@ -242,6 +247,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: Fonts.sans,
     lineHeight: 18,
+  },
+  markdownWrap: {
+    gap: 4,
   },
   toolCalls: {
     gap: 10,
