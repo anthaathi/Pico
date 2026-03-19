@@ -460,9 +460,9 @@ impl AgentManager {
             cwd
         };
 
-        tracing::debug!(
-            "Spawning pi: binary={pi_bin}, cwd={cwd}, PATH={:?}",
-            std::env::var("PATH").unwrap_or_default()
+        tracing::info!(
+            "Spawning pi: binary={pi_bin}, cwd={cwd}, session_path={:?}, extra_args={:?}",
+            session_path, extra_args
         );
 
         let mut cmd = tokio::process::Command::new(pi_bin);

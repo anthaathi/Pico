@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -143,11 +144,15 @@ export function ChangesPanel() {
 
       <View style={styles.tabPanels}>
         <View
+          {...(Platform.OS !== "web"
+            ? { pointerEvents: currentTab === "files" ? ("auto" as const) : ("none" as const) }
+            : {})}
           style={[
             styles.tabPanel,
             currentTab !== "files" && styles.tabPanelHidden,
+            Platform.OS === "web" &&
+              ({ pointerEvents: currentTab === "files" ? "auto" : "none" } as any),
           ]}
-          pointerEvents={currentTab === "files" ? "auto" : "none"}
         >
           {cwd ? (
             <FileTree
@@ -166,13 +171,17 @@ export function ChangesPanel() {
 
         {isGitRepo && (
           <ScrollView
+            {...(Platform.OS !== "web"
+              ? { pointerEvents: currentTab !== "files" ? ("auto" as const) : ("none" as const) }
+              : {})}
             style={[
               styles.tabPanel,
               currentTab === "files" && styles.tabPanelHidden,
+              Platform.OS === "web" &&
+                ({ pointerEvents: currentTab !== "files" ? "auto" : "none" } as any),
             ]}
             contentContainerStyle={styles.contentInner}
             showsVerticalScrollIndicator={false}
-            pointerEvents={currentTab !== "files" ? "auto" : "none"}
           >
             {isLoading ? (
               <ActivityIndicator style={{ marginTop: 32 }} />

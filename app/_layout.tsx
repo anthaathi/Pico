@@ -27,7 +27,7 @@ import { useAppSettingsStore } from "@/features/settings/store";
 import { useAuthStore } from "@/features/auth/store";
 import { useServersStore } from "@/features/servers/store";
 import { useChatStore } from "@/features/chat/store";
-import { Platform } from "react-native";
+
 
 SplashScreen.preventAutoHideAsync();
 

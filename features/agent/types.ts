@@ -37,7 +37,13 @@ export interface MessageUsageInfo {
   output?: number;
   cacheRead?: number;
   cacheWrite?: number;
+  cacheReadCost?: number;
+  cacheWriteCost?: number;
   totalTokens?: number;
+  inputCost?: number;
+  outputCost?: number;
+  totalCost?: number;
+  currency?: string;
 }
 
 export interface ChatMessage {

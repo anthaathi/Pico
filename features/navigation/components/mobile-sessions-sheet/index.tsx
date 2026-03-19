@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -10,7 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { SquarePen, RefreshCw } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -30,6 +30,7 @@ interface MobileSessionsSheetProps {
 
 export function MobileSessionsSheet({ visible, onClose }: MobileSessionsSheetProps) {
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
   const isDark = colorScheme === 'dark';
@@ -58,6 +59,7 @@ export function MobileSessionsSheet({ visible, onClose }: MobileSessionsSheetPro
   const textMuted = isDark ? '#cdc8c5' : colors.textTertiary;
   const textSecondary = isDark ? '#f1ece8' : colors.textSecondary;
   const btnBg = isDark ? '#191919' : '#F0F0F0';
+  const selectedSessionId = pathname.match(/\/workspace\/[^/]+\/s\/([^/]+)/)?.[1] ?? null;
 
   useEffect(() => {
     if (visible) {
@@ -112,7 +114,15 @@ export function MobileSessionsSheet({ visible, onClose }: MobileSessionsSheetPro
   }));
 
   return (
-    <View style={styles.root} pointerEvents={visible ? 'auto' : 'none'}>
+    <View
+      {...(Platform.OS !== 'web'
+        ? { pointerEvents: visible ? ('auto' as const) : ('none' as const) }
+        : {})}
+      style={[
+        styles.root,
+        Platform.OS === 'web' && ({ pointerEvents: visible ? 'auto' : 'none' } as any),
+      ]}
+    >
       <Animated.View style={[styles.overlay, { backgroundColor: colors.overlay }, overlayStyle]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={dismiss} />
       </Animated.View>
@@ -206,6 +216,9 @@ export function MobileSessionsSheet({ visible, onClose }: MobileSessionsSheetPro
                   }}
                   style={({ pressed }) => [
                     styles.sessionItem,
+                    session.id === selectedSessionId && {
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                    },
                     pressed && { opacity: 0.7 },
                   ]}
                 >

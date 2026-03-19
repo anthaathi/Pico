@@ -1,4 +1,3 @@
-import Slugger from "github-slugger";
 import React, { type ReactNode } from "react";
 import {
 	Dimensions,
@@ -19,13 +18,20 @@ import { getTableWidthArr } from "../utils/table";
 import type { RendererInterface } from "./types";
 
 class Renderer implements RendererInterface {
-	private slugPrefix = "react-native-marked-ele";
-	private slugger: Slugger;
+	private keyPrefix: string;
+	private keyCounter: number;
 	private windowWidth: number;
 	constructor() {
-		this.slugger = new Slugger();
+		this.keyPrefix = `react-native-marked-${Math.random()
+			.toString(36)
+			.slice(2, 10)}`;
+		this.keyCounter = 0;
 		const { width } = Dimensions.get("window");
 		this.windowWidth = width;
+	}
+
+	resetKeys(): void {
+		this.keyCounter = 0;
 	}
 
 	paragraph(children: ReactNode[], styles?: ViewStyle): ReactNode {
@@ -198,7 +204,9 @@ class Renderer implements RendererInterface {
 	}
 
 	getKey(): string {
-		return this.slugger.slug(this.slugPrefix);
+		const key = `${this.keyPrefix}-${this.keyCounter}`;
+		this.keyCounter += 1;
+		return key;
 	}
 
 	private getTextNode(

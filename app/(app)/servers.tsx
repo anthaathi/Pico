@@ -449,11 +449,14 @@ function ServerFormSheet({
         </Animated.View>
 
         <RNAnimated.View
+          {...(Platform.OS !== "web"
+            ? { pointerEvents: "box-none" as const }
+            : {})}
           style={[
             sheetStyles.keyboardAvoider,
             { transform: [{ translateY: keyboardLift }] },
+            Platform.OS === "web" && ({ pointerEvents: "none" } as any),
           ]}
-          pointerEvents="box-none"
         >
           <GestureDetector gesture={panGesture}>
             <Animated.View
@@ -464,6 +467,7 @@ function ServerFormSheet({
                   paddingBottom: sheetBottomPadding,
                 },
                 sheetStyle,
+                Platform.OS === "web" && ({ pointerEvents: "auto" } as any),
               ]}
             >
               <View style={sheetStyles.handleBar}>

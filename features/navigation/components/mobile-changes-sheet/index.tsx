@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Platform, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   Easing,
@@ -76,7 +76,15 @@ export function MobileChangesSheet({
   }));
 
   return (
-    <View style={styles.root} pointerEvents={visible ? "auto" : "none"}>
+    <View
+      {...(Platform.OS !== "web"
+        ? { pointerEvents: visible ? ("auto" as const) : ("none" as const) }
+        : {})}
+      style={[
+        styles.root,
+        Platform.OS === "web" && ({ pointerEvents: visible ? "auto" : "none" } as any),
+      ]}
+    >
       <Animated.View
         style={[
           styles.overlay,

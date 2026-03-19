@@ -59,11 +59,10 @@ export async function deleteChatSession(sessionId: string): Promise<void> {
 
 export async function touchChatSession(
   sessionId: string,
-  sessionFile: string,
 ): Promise<AgentSessionInfo> {
   const result = await touchSession2({
     path: { session_id: sessionId },
-    body: { session_file: sessionFile },
+    body: {},
   });
   if (result.error) {
     throw new Error(

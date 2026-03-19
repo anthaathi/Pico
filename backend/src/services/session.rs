@@ -388,7 +388,8 @@ fn parse_session_list_item(path: &Path, cwd: &str) -> Option<SessionListItem> {
     let display_name = session_name.or_else(|| {
         first_message.as_ref().map(|m| {
             if m.len() > 100 {
-                format!("{}...", &m[..100])
+                let end = m.floor_char_boundary(100);
+                format!("{}...", &m[..end])
             } else {
                 m.clone()
             }
@@ -513,7 +514,14 @@ fn extract_preview(val: &Value, entry_type: &str) -> Option<String> {
             } else {
                 None
             };
-            text.map(|t| if t.len() > 200 { format!("{}...", &t[..200]) } else { t })
+            text.map(|t| {
+                if t.len() > 200 {
+                    let end = t.floor_char_boundary(200);
+                    format!("{}...", &t[..end])
+                } else {
+                    t
+                }
+            })
         }
         "compaction" => val.get("summary").and_then(|s| s.as_str()).map(|s| s.to_string()),
         "branch_summary" => val.get("summary").and_then(|s| s.as_str()).map(|s| s.to_string()),

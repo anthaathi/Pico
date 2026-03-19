@@ -22,7 +22,7 @@ pub struct CreateChatSessionRequest {
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct TouchChatSessionRequest {
-    pub session_file: String,
+    pub session_file: Option<String>,
 }
 
 #[derive(Debug, Deserialize, IntoParams)]
@@ -197,12 +197,15 @@ pub async fn touch_session(
     }
 
     let cwd = state.config.chat_cwd();
+    let session_file = req.session_file
+        .filter(|f| !f.is_empty())
+        .unwrap_or_else(|| session_id.clone());
 
     match state
         .agent
         .touch_session(
             &session_id,
-            req.session_file,
+            session_file,
             CHAT_WORKSPACE_ID.to_string(),
             cwd,
         )

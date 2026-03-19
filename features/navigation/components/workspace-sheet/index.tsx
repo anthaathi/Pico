@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,7 +19,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import PagerView from 'react-native-pager-view';
-import { useRouter } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import { SquarePen, RefreshCw, Plus } from 'lucide-react-native';
 
 import { Colors, Fonts } from '@/constants/theme';
@@ -155,7 +156,15 @@ export function WorkspaceSheet({ visible, onClose }: WorkspaceSheetProps) {
   }));
 
   return (
-    <View style={styles.root} pointerEvents={visible ? 'auto' : 'none'}>
+    <View
+      {...(Platform.OS !== 'web'
+        ? { pointerEvents: visible ? ('auto' as const) : ('none' as const) }
+        : {})}
+      style={[
+        styles.root,
+        Platform.OS === 'web' && ({ pointerEvents: visible ? 'auto' : 'none' } as any),
+      ]}
+    >
       <Animated.View
         style={[styles.overlay, { backgroundColor: colors.overlay }, overlayStyle]}
       >
@@ -328,6 +337,9 @@ function SessionPage({ workspaceId, onSessionPress, onDismiss }: SessionPageProp
   const colors = Colors[colorScheme];
   const isDark = colorScheme === 'dark';
   const router = useRouter();
+  const pathname = usePathname();
+  const selectedSessionId =
+    pathname.match(new RegExp(`/workspace/${workspaceId}/s/([^/]+)`))?.[1] ?? null;
 
   const textPrimary = isDark ? '#fefdfd' : colors.text;
   const textMuted = isDark ? '#cdc8c5' : colors.textTertiary;
@@ -417,6 +429,9 @@ function SessionPage({ workspaceId, onSessionPress, onDismiss }: SessionPageProp
               onPress={() => onSessionPress(session.id)}
               style={({ pressed }) => [
                 styles.sessionItem,
+                session.id === selectedSessionId && {
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                },
                 pressed && { opacity: 0.7 },
               ]}
             >

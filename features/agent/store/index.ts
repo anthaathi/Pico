@@ -137,6 +137,8 @@ function extractUsageInfo(message: any): MessageUsageInfo | undefined {
   if (!usage || typeof usage !== "object") {
     return undefined;
   }
+  const cost =
+    usage.cost && typeof usage.cost === "object" ? usage.cost : undefined;
 
   return {
     input: typeof usage.input === "number" ? usage.input : undefined,
@@ -145,10 +147,22 @@ function extractUsageInfo(message: any): MessageUsageInfo | undefined {
       typeof usage.cacheRead === "number" ? usage.cacheRead : undefined,
     cacheWrite:
       typeof usage.cacheWrite === "number" ? usage.cacheWrite : undefined,
+    cacheReadCost:
+      typeof cost?.cacheRead === "number" ? cost.cacheRead : undefined,
+    cacheWriteCost:
+      typeof cost?.cacheWrite === "number" ? cost.cacheWrite : undefined,
     totalTokens:
       typeof usage.totalTokens === "number"
         ? usage.totalTokens
         : undefined,
+    inputCost:
+      typeof cost?.input === "number" ? cost.input : undefined,
+    outputCost:
+      typeof cost?.output === "number" ? cost.output : undefined,
+    totalCost:
+      typeof cost?.total === "number" ? cost.total : undefined,
+    currency:
+      typeof cost?.currency === "string" ? cost.currency : undefined,
   };
 }
 

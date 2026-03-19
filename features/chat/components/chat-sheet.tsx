@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,7 +17,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { useRouter } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import { SquarePen, RefreshCw } from 'lucide-react-native';
 
 import { Colors, Fonts } from '@/constants/theme';
@@ -37,9 +38,12 @@ interface ChatSheetProps {
 export function ChatSheet({ visible, onClose }: ChatSheetProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const pathname = usePathname();
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
   const isDark = colorScheme === 'dark';
+  const chatMatch = pathname.match(/\/chat\/([^/]+)/);
+  const selectedSessionId = chatMatch?.[1] ?? null;
 
   const translateY = useSharedValue(SHEET_HEIGHT);
   const overlayOpacity = useSharedValue(0);
@@ -108,7 +112,15 @@ export function ChatSheet({ visible, onClose }: ChatSheetProps) {
   }));
 
   return (
-    <View style={styles.root} pointerEvents={visible ? 'auto' : 'none'}>
+    <View
+      {...(Platform.OS !== 'web'
+        ? { pointerEvents: visible ? ('auto' as const) : ('none' as const) }
+        : {})}
+      style={[
+        styles.root,
+        Platform.OS === 'web' && { pointerEvents: visible ? 'auto' : 'none' },
+      ]}
+    >
       <Animated.View
         style={[styles.overlay, { backgroundColor: colors.overlay }, overlayStyle]}
       >
@@ -134,6 +146,7 @@ export function ChatSheet({ visible, onClose }: ChatSheetProps) {
         <ChatSessionList
           onNewChat={handleNewChat}
           onSelectSession={handleSelectSession}
+          selectedSessionId={selectedSessionId}
           textPrimary={textPrimary}
           textMuted={textMuted}
           btnBg={btnBg}
@@ -147,6 +160,7 @@ export function ChatSheet({ visible, onClose }: ChatSheetProps) {
 function ChatSessionList({
   onNewChat,
   onSelectSession,
+  selectedSessionId,
   textPrimary,
   textMuted,
   btnBg,
@@ -154,6 +168,7 @@ function ChatSessionList({
 }: {
   onNewChat: () => void;
   onSelectSession: (id: string) => void;
+  selectedSessionId: string | null;
   textPrimary: string;
   textMuted: string;
   btnBg: string;
@@ -214,7 +229,13 @@ function ChatSessionList({
             <Pressable
               key={session.id}
               onPress={() => onSelectSession(session.id)}
-              style={({ pressed }) => [styles.sessionItem, pressed && { opacity: 0.7 }]}
+              style={({ pressed }) => [
+                styles.sessionItem,
+                session.id === selectedSessionId && {
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                },
+                pressed && { opacity: 0.7 },
+              ]}
             >
               <SessionActivityIndicator sessionId={session.id} color={textMuted} />
               <Text style={[styles.sessionTitle, { color: textPrimary }]} numberOfLines={1}>

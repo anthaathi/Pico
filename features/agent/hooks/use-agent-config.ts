@@ -25,7 +25,10 @@ export const THINKING_LEVELS = [
 
 export type ThinkingLevel = (typeof THINKING_LEVELS)[number];
 
-export function useAgentModels(sessionId: string | null | undefined) {
+const AGENT_MODELS_GC_TIME = 60 * 60_000;
+const AGENT_STATE_GC_TIME = 30 * 60_000;
+
+export function useAgentModels(sessionId: string | null | undefined, ready = true) {
   return useQuery({
     queryKey: ["agent-models", sessionId],
     queryFn: async () => {
@@ -42,12 +45,13 @@ export function useAgentModels(sessionId: string | null | undefined) {
       }));
       return models;
     },
-    enabled: !!sessionId,
+    enabled: !!sessionId && ready,
     staleTime: 5 * 60_000,
+    gcTime: AGENT_MODELS_GC_TIME,
   });
 }
 
-export function useAgentState(sessionId: string | null | undefined) {
+export function useAgentState(sessionId: string | null | undefined, ready = true) {
   return useQuery({
     queryKey: ["agent-state", sessionId],
     queryFn: async () => {
@@ -62,8 +66,9 @@ export function useAgentState(sessionId: string | null | undefined) {
         mode: extractAgentMode(data),
       };
     },
-    enabled: !!sessionId,
+    enabled: !!sessionId && ready,
     staleTime: 30_000,
+    gcTime: AGENT_STATE_GC_TIME,
   });
 }
 
@@ -85,6 +90,7 @@ export function useAgentModelsSuspense(sessionId: string) {
       return models;
     },
     staleTime: 5 * 60_000,
+    gcTime: AGENT_MODELS_GC_TIME,
   });
 }
 
@@ -104,6 +110,7 @@ export function useAgentStateSuspense(sessionId: string) {
       };
     },
     staleTime: 30_000,
+    gcTime: AGENT_STATE_GC_TIME,
   });
 }
 

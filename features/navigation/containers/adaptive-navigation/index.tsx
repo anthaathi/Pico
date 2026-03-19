@@ -58,7 +58,6 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
   const showSessions = hasServer && hasWorkspaces;
   const [sheetVisible, setSheetVisible] = useState(false);
   const [changesSheetVisible, setChangesSheetVisible] = useState(false);
-  const [chatSidebarVisible, setChatSidebarVisible] = useState(false);
   const [chatSheetVisible, setChatSheetVisible] = useState(false);
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>("persistent");
   const [hoverVisible, setHoverVisible] = useState(false);
@@ -77,6 +76,8 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
   const [railMounted, setRailMounted] = useState(isCodeMode);
   const chatSidebarAnim = useRef(new Animated.Value(0)).current;
   const [chatSidebarMounted, setChatSidebarMounted] = useState(false);
+  const chatSidebarVisible = useChatStore((s) => s.sidebarVisible);
+  const setChatSidebarVisible = useChatStore((s) => s.setSidebarVisible);
 
   const isPersistent = sidebarMode === "persistent";
 
@@ -144,8 +145,8 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
   }, []);
 
   const handleToggleChatSidebar = useCallback(() => {
-    setChatSidebarVisible((prev) => !prev);
-  }, []);
+    setChatSidebarVisible(!chatSidebarVisible);
+  }, [chatSidebarVisible, setChatSidebarVisible]);
 
   const handleRailHoverIn = useCallback(() => {
     if (!isPersistent) setHoverVisible(true);

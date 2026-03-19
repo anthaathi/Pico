@@ -70,11 +70,11 @@ export default function WorkspaceScreen() {
 
   const ensureSession = useCallback(
     async (targetWorkspaceId: string) => {
-      if (
-        preSession?.workspaceId === targetWorkspaceId &&
-        preSession.sessionId
-      ) {
-        return preSession.sessionId;
+      const matchingPreSession =
+        preSession?.workspaceId === targetWorkspaceId ? preSession : null;
+
+      if (matchingPreSession?.sessionId) {
+        return matchingPreSession.sessionId;
       }
 
       const existingRequest = pendingSessionRef.current;

@@ -579,24 +579,28 @@ function initializeClientAuth() {
       return response;
     }
 
-    const headers = new Headers(request.headers);
-    headers.delete('Authorization');
-    headers.delete('authorization');
+    const retryHeaders = new Headers(request.headers);
+    retryHeaders.delete('Authorization');
+    retryHeaders.delete('authorization');
+    const newToken = currentConfiguredAccessToken();
+    if (newToken) {
+      retryHeaders.set('Authorization', `Bearer ${newToken}`);
+    }
 
-    const method =
-      opts.method ??
-      (request.method as NonNullable<typeof opts.method>);
-
-    const retryResult = await (client.request as typeof client.request & ((
-      options: typeof opts & { _authRetry: boolean; method: typeof method }
-    ) => Promise<{ response?: Response }>))({
-      ...opts,
-      _authRetry: true,
-      headers,
-      method,
+    const _fetch = (opts as { fetch?: typeof fetch }).fetch ?? globalThis.fetch;
+    const retryRequest = new Request(request.url, {
+      method: request.method,
+      headers: retryHeaders,
+      body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
+      redirect: 'follow',
+      signal: request.signal,
     });
 
-    return retryResult.response ?? response;
+    try {
+      return await _fetch(retryRequest);
+    } catch {
+      return response;
+    }
   });
 }
 

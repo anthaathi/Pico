@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react';
+import { memo, useRef, useState, useEffect } from 'react';
 import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Check, X } from 'lucide-react-native';
 
@@ -19,7 +19,7 @@ interface MobileModelSheetProps {
   onClose: () => void;
 }
 
-export function MobileModelSheet({
+function MobileModelSheetComponent({
   visible,
   sessionId,
   onClose,
@@ -154,6 +154,8 @@ export function MobileModelSheet({
     </Modal>
   );
 }
+
+export const MobileModelSheet = memo(MobileModelSheetComponent);
 
 const styles = StyleSheet.create({
   modalRoot: {

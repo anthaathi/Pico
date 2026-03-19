@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import {
   Animated,
   Keyboard,
@@ -33,7 +33,16 @@ import {
 import { usePromptTheme } from "./use-theme-colors";
 import { SlashCommandDropdown } from "./slash-command-dropdown";
 import { AttachmentChips } from "./attachment-chips";
-import { Toolbar } from "./toolbar";
+import {
+  Toolbar,
+  TOOLBAR_ANDROID_MARGIN_TOP,
+  TOOLBAR_BORDER_WIDTH,
+  TOOLBAR_CONTROL_HEIGHT,
+  TOOLBAR_CORNER_RADIUS,
+  TOOLBAR_HORIZONTAL_MARGIN,
+  TOOLBAR_VERTICAL_PADDING,
+  TOOLBAR_WRAP_OFFSET,
+} from "./toolbar";
 import { MobileModelSheet } from "./mobile-model-sheet";
 import { MobileEffortSheet } from "./mobile-effort-sheet";
 
@@ -132,20 +141,20 @@ function ToolbarSkeleton({ isDark }: { isDark: boolean }) {
 
 const skeletonStyles = StyleSheet.create({
   wrap: {
-    marginTop: -14,
-    paddingTop: 14,
-    marginHorizontal: 6,
+    marginTop: -TOOLBAR_WRAP_OFFSET,
+    paddingTop: TOOLBAR_WRAP_OFFSET,
+    marginHorizontal: TOOLBAR_HORIZONTAL_MARGIN,
   },
   toolbar: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 4,
-    paddingVertical: 10,
-    borderWidth: 0.633,
+    paddingVertical: TOOLBAR_VERTICAL_PADDING,
+    borderWidth: TOOLBAR_BORDER_WIDTH,
     borderTopWidth: 0,
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
-    marginTop: Platform.OS === "android" ? -4 : 0,
+    borderBottomLeftRadius: TOOLBAR_CORNER_RADIUS,
+    borderBottomRightRadius: TOOLBAR_CORNER_RADIUS,
+    marginTop: TOOLBAR_ANDROID_MARGIN_TOP,
   },
   track: {
     flexDirection: "row",
@@ -154,7 +163,7 @@ const skeletonStyles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   pill: {
-    height: 28,
+    height: TOOLBAR_CONTROL_HEIGHT,
     borderRadius: 6,
   },
   pillWide: {
@@ -247,6 +256,10 @@ export function PromptInput({
   const [entryDone, setEntryDone] = useState(false);
   const toolbarVisible = isWideScreen || (!hideBottomForKeyboard && !mobileSheet);
   const toolbarOverlap = Platform.OS === "web" || isWideScreen ? -4 : -1;
+  const toolbarSkeleton = useMemo(
+    () => <ToolbarSkeleton isDark={theme.isDark} />,
+    [theme.isDark],
+  );
 
   const closeMobileSheet = useCallback(() => {
     LayoutAnimation.configureNext(
@@ -871,7 +884,7 @@ export function PromptInput({
             onOpenMobileSheet={setMobileSheet}
             onDropdownOpenChange={setToolbarPopoverOpen}
             inputRef={inputRef}
-            skeleton={<ToolbarSkeleton isDark={theme.isDark} />}
+            skeleton={toolbarSkeleton}
             modeLabel={
               sessionId && sessionReady && streamedMode
                 ? formatAgentModeLabel(streamedMode)
@@ -883,16 +896,16 @@ export function PromptInput({
       )}
 
       {/* Mobile bottom sheets */}
-      {sessionReady && (
+      {sessionReady && mobileSheet === "model" && (
         <MobileModelSheet
-          visible={mobileSheet === "model"}
+          visible
           sessionId={sessionId}
           onClose={closeMobileSheet}
         />
       )}
-      {sessionReady && (
+      {sessionReady && mobileSheet === "effort" && (
         <MobileEffortSheet
-          visible={mobileSheet === "effort"}
+          visible
           sessionId={sessionId}
           onClose={closeMobileSheet}
         />

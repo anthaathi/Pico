@@ -8,6 +8,7 @@ interface ChatPersistedState {
   lastSessionId?: string | null;
   noTools?: boolean;
   systemPrompt?: string | null;
+  sidebarVisible?: boolean;
 }
 
 interface ChatState {
@@ -15,10 +16,12 @@ interface ChatState {
   lastSessionId: string | null;
   noTools: boolean;
   systemPrompt: string | null;
+  sidebarVisible: boolean;
   loaded: boolean;
   selectSession: (id: string | null) => void;
   setNoTools: (enabled: boolean) => void;
   setSystemPrompt: (prompt: string | null) => void;
+  setSidebarVisible: (visible: boolean) => void;
   load: () => Promise<void>;
 }
 
@@ -51,6 +54,7 @@ function persistState(state: ChatState) {
     lastSessionId: state.lastSessionId,
     noTools: state.noTools,
     systemPrompt: state.systemPrompt,
+    sidebarVisible: state.sidebarVisible,
   });
 }
 
@@ -59,6 +63,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   lastSessionId: null,
   noTools: true,
   systemPrompt: null,
+  sidebarVisible: false,
   loaded: false,
 
   selectSession: (id) => {
@@ -76,12 +81,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
     persistState({ ...get(), systemPrompt: prompt });
   },
 
+  setSidebarVisible: (visible) => {
+    set({ sidebarVisible: visible });
+    persistState({ ...get(), sidebarVisible: visible });
+  },
+
   load: async () => {
     const stored = await readFromStore();
     set({
       lastSessionId: stored.lastSessionId ?? null,
       noTools: stored.noTools ?? true,
       systemPrompt: stored.systemPrompt ?? null,
+      sidebarVisible: stored.sidebarVisible ?? false,
       loaded: true,
     });
   },

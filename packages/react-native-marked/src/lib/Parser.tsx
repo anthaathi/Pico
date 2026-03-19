@@ -28,6 +28,7 @@ class Parser {
 	}
 
 	parse(tokens?: Token[]) {
+		this.renderer.resetKeys?.();
 		return this._parse(tokens);
 	}
 

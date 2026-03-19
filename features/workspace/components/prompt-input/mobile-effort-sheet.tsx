@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { memo, useRef, useEffect } from 'react';
 import { Animated, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Check } from 'lucide-react-native';
 
@@ -16,7 +16,7 @@ interface MobileEffortSheetProps {
   onClose: () => void;
 }
 
-export function MobileEffortSheet({
+function MobileEffortSheetComponent({
   visible,
   sessionId,
   onClose,
@@ -36,7 +36,7 @@ export function MobileEffortSheet({
         Animated.spring(slideAnim, { toValue: 0, tension: 120, friction: 14, useNativeDriver: true }),
       ]).start();
     }
-  }, [visible]);
+  }, [overlayAnim, slideAnim, visible]);
 
   const animateClose = (cb: () => void) => {
     Animated.parallel([
@@ -103,6 +103,8 @@ export function MobileEffortSheet({
     </Modal>
   );
 }
+
+export const MobileEffortSheet = memo(MobileEffortSheetComponent);
 
 const styles = StyleSheet.create({
   modalRoot: {

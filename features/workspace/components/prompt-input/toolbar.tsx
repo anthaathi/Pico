@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useMemo, useState } from 'react';
+import { memo, useRef, useEffect, useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -43,7 +43,15 @@ interface ToolbarProps {
 
 type DropdownType = null | 'model' | 'effort';
 
-export function Toolbar({
+export const TOOLBAR_WRAP_OFFSET = 10;
+export const TOOLBAR_HORIZONTAL_MARGIN = 6;
+export const TOOLBAR_BORDER_WIDTH = 0.633;
+export const TOOLBAR_CORNER_RADIUS = 12;
+export const TOOLBAR_VERTICAL_PADDING = Platform.OS === 'web' ? 7 : 9;
+export const TOOLBAR_CONTROL_HEIGHT = Platform.OS === 'web' ? 26 : 30;
+export const TOOLBAR_ANDROID_MARGIN_TOP = Platform.OS === 'android' ? -4 : 0;
+
+function ToolbarComponent({
   sessionId,
   isWideScreen,
   onOpenMobileSheet,
@@ -58,11 +66,15 @@ export function Toolbar({
   const modelScrollRef = useRef<ScrollView>(null);
   const modelSearchRef = useRef<TextInput>(null);
 
-  const { data: models, isLoading: modelsLoading } = useAgentModels(sessionId);
-  const { data: agentState, isLoading: stateLoading } = useAgentState(sessionId);
+  const { data: models, isLoading: modelsLoading } = useAgentModels(sessionId, ready);
+  const { data: agentState, isLoading: stateLoading } = useAgentState(sessionId, ready);
   const setModelMutation = useSetModel(sessionId);
   const setThinkingMutation = useSetThinkingLevel(sessionId);
   const setModeMutation = useSetAgentMode(sessionId);
+  const hasCachedModels = models !== undefined;
+  const hasCachedState = agentState !== undefined;
+  const showCachedToolbar = hasCachedModels && hasCachedState;
+  const toolbarDisabled = !ready;
 
   const currentModel = agentState?.model;
   const currentThinking = agentState?.thinkingLevel ?? 'medium';
@@ -227,7 +239,9 @@ export function Toolbar({
     [flatModels, popoverIndex, handleSelectModel, inputRef]
   );
 
-  if (!ready || modelsLoading || stateLoading || !agentState) return <>{skeleton}</>;
+  if ((!ready && !showCachedToolbar) || (modelsLoading && !hasCachedModels) || (stateLoading && !hasCachedState) || !agentState) {
+    return <>{skeleton}</>;
+  }
 
   return (
     <View style={[styles.wrap, activeDropdown && { zIndex: 10 }]}>
@@ -240,10 +254,11 @@ export function Toolbar({
         <View style={styles.popoverAnchor}>
           <Pressable
             onPress={() => isWideScreen ? toggleDropdown('model') : onOpenMobileSheet('model')}
+            disabled={toolbarDisabled}
             accessibilityRole="button"
             accessibilityLabel={`Model: ${currentModel?.name ?? 'Loading'}. Press to change.`}
-            accessibilityState={{ expanded: activeDropdown === 'model' }}
-            style={({ pressed }) => [styles.button, pressed && { opacity: 0.7 }]}
+            accessibilityState={{ expanded: activeDropdown === 'model', disabled: toolbarDisabled }}
+            style={({ pressed }) => [styles.button, (pressed || toolbarDisabled) && { opacity: 0.7 }]}
           >
             <ProviderIcon provider={currentModel?.provider ?? ''} size={14} color={theme.textMuted} />
             <Text style={[styles.buttonText, { color: theme.textSecondary }]} numberOfLines={1}>
@@ -343,10 +358,11 @@ export function Toolbar({
         <View style={styles.popoverAnchor}>
           <Pressable
             onPress={() => isWideScreen ? toggleDropdown('effort') : onOpenMobileSheet('effort')}
+            disabled={toolbarDisabled}
             accessibilityRole="button"
             accessibilityLabel={`Thinking: ${thinkingLabel}. Press to change.`}
-            accessibilityState={{ expanded: activeDropdown === 'effort' }}
-            style={({ pressed }) => [styles.button, pressed && { opacity: 0.7 }]}
+            accessibilityState={{ expanded: activeDropdown === 'effort', disabled: toolbarDisabled }}
+            style={({ pressed }) => [styles.button, (pressed || toolbarDisabled) && { opacity: 0.7 }]}
           >
             <Text style={[styles.buttonText, { color: theme.textSecondary }]}>
               {thinkingLabel}
@@ -431,9 +447,9 @@ export function Toolbar({
                 }
                 accessibilityState={{
                   selected: isActive,
-                  disabled: setModeMutation.isPending,
+                  disabled: toolbarDisabled || setModeMutation.isPending,
                 }}
-                disabled={setModeMutation.isPending}
+                disabled={toolbarDisabled || setModeMutation.isPending}
                 onPress={() => handleSelectMode(mode)}
                 style={({ pressed }) => [
                   styles.modeButton,
@@ -470,24 +486,26 @@ export function Toolbar({
   );
 }
 
+export const Toolbar = memo(ToolbarComponent);
+
 const styles = StyleSheet.create({
   wrap: {
-    marginTop: -10,
-    paddingTop: 10,
-    marginHorizontal: 6,
+    marginTop: -TOOLBAR_WRAP_OFFSET,
+    paddingTop: TOOLBAR_WRAP_OFFSET,
+    marginHorizontal: TOOLBAR_HORIZONTAL_MARGIN,
     overflow: 'visible',
   },
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 4,
-    paddingVertical: Platform.OS === 'web' ? 7 : 9,
-    borderWidth: 0.633,
+    paddingVertical: TOOLBAR_VERTICAL_PADDING,
+    borderWidth: TOOLBAR_BORDER_WIDTH,
     borderTopWidth: 0,
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
+    borderBottomLeftRadius: TOOLBAR_CORNER_RADIUS,
+    borderBottomRightRadius: TOOLBAR_CORNER_RADIUS,
     gap: 2,
-    marginTop: Platform.OS === 'android' ? -4 : 0,
+    marginTop: TOOLBAR_ANDROID_MARGIN_TOP,
     zIndex: Platform.OS === 'android' ? 1 : 5,
   },
   spacer: {
@@ -497,7 +515,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    height: Platform.OS === 'web' ? 26 : 30,
+    height: TOOLBAR_CONTROL_HEIGHT,
     paddingHorizontal: 8,
     borderRadius: 6,
     maxWidth: 200,
@@ -510,13 +528,13 @@ const styles = StyleSheet.create({
   modeToggle: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 0.633,
+    borderWidth: TOOLBAR_BORDER_WIDTH,
     borderRadius: 999,
     padding: 1,
     marginRight: 8,
   },
   modeButton: {
-    height: Platform.OS === 'web' ? 26 : 30,
+    height: TOOLBAR_CONTROL_HEIGHT,
     borderRadius: 999,
     paddingHorizontal: 9,
     alignItems: 'center',
@@ -542,7 +560,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     minWidth: 220,
     borderRadius: 10,
-    borderWidth: 0.633,
+    borderWidth: TOOLBAR_BORDER_WIDTH,
     overflow: 'hidden',
     boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
     elevation: 8,
@@ -554,7 +572,7 @@ const styles = StyleSheet.create({
   searchWrap: {
     paddingHorizontal: 10,
     paddingVertical: 8,
-    borderBottomWidth: 0.633,
+    borderBottomWidth: TOOLBAR_BORDER_WIDTH,
   },
   searchInput: {
     fontSize: 13,

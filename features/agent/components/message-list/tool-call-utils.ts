@@ -8,6 +8,8 @@ type ParsedToolArguments = {
   content?: string;
   offset?: number;
   limit?: number;
+  agent?: string;
+  task?: string;
 };
 
 const TOOL_STATUS_LABELS: Record<string, string> = {
@@ -19,7 +21,7 @@ const TOOL_STATUS_LABELS: Record<string, string> = {
   search: "Searching...",
   scrape: "Scraping...",
   crawl: "Crawling...",
-  subagent: "Running...",
+  subagent: "",
 };
 
 function decodeEscapedChar(char: string): string {
@@ -128,6 +130,8 @@ export function parseToolArguments(rawArgs: string): ParsedToolArguments {
       offset:
         typeof parsed.offset === "number" ? parsed.offset : undefined,
       limit: typeof parsed.limit === "number" ? parsed.limit : undefined,
+      agent: typeof parsed.agent === "string" ? parsed.agent : undefined,
+      task: typeof parsed.task === "string" ? parsed.task : undefined,
     };
   } catch {
     return {
@@ -138,6 +142,8 @@ export function parseToolArguments(rawArgs: string): ParsedToolArguments {
       content: extractPartialJsonStringField(rawArgs, "content"),
       offset: extractPartialJsonNumberField(rawArgs, "offset"),
       limit: extractPartialJsonNumberField(rawArgs, "limit"),
+      agent: extractPartialJsonStringField(rawArgs, "agent"),
+      task: extractPartialJsonStringField(rawArgs, "task"),
     };
   }
 }

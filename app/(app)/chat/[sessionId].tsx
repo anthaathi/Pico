@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
   Animated,
   Keyboard,
@@ -86,7 +86,7 @@ export default function ChatSessionScreen() {
       }
 
       try {
-        await touchChatSession(sessionId, '');
+        await touchChatSession(sessionId);
       } catch {}
 
       const stateResult = await apiGetState({ body: { session_id: sessionId } });
@@ -194,8 +194,6 @@ export default function ChatSessionScreen() {
     </Animated.View>
   );
 }
-
-import React from 'react';
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

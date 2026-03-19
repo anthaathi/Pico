@@ -1,4 +1,4 @@
-name: Build Release Binaries
+name: Build and Release
 
 on:
   push:
@@ -76,9 +76,69 @@ jobs:
           name: ${{ matrix.artifact }}
           path: backend/target/${{ matrix.target }}/release/pi-server${{ contains(matrix.artifact, 'windows') && '.exe' || '' }}
 
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+
+      - name: Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EAS_API_TOKEN }}
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build APK
+        run: eas build --platform android --profile preview --non-interactive --local
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: pi-ui-android
+          path: '*.apk'
+
+  eas-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+
+      - name: Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EAS_API_TOKEN }}
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: EAS Update
+        run: eas update --auto --non-interactive
+
   release:
-    needs: build
-    runs-on: ubuntu-22.04
+    needs: [build, build-apk]
+    runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write

@@ -28,6 +28,7 @@ export interface MarkdownProps extends Partial<ParserOptions> {
 export type TableColAlignment = "center" | "left" | "right" | null;
 
 export interface RendererInterface {
+	resetKeys?(): void;
 	paragraph(children: ReactNode[], styles?: ViewStyle): ReactNode;
 	blockquote(children: ReactNode[], styles?: ViewStyle): ReactNode;
 	heading(
