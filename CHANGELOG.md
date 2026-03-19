@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/anthaathi/pi-companion/compare/v1.0.2...v1.0.3) (2026-03-19)
+
+
+### Bug Fixes
+
+* use EAS cloud builds instead of local for Android APK ([7ec8a86](https://github.com/anthaathi/pi-companion/commit/7ec8a86127912154ac7ece31189f7e5ed1fb5d88))
+
 ## [1.0.2](https://github.com/anthaathi/pi-companion/compare/v1.0.1...v1.0.2) (2026-03-19)
 
 
