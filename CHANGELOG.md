@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.4](https://github.com/anthaathi/pi-companion/compare/v1.0.3...v1.0.4) (2026-03-19)
+
+
+### Bug Fixes
+
+* revert to local APK builds, add project README ([71fcab5](https://github.com/anthaathi/pi-companion/commit/71fcab519b3eed6df5a49914937eecce5027b6c8))
+
 ## [1.0.3](https://github.com/anthaathi/pi-companion/compare/v1.0.2...v1.0.3) (2026-03-19)
 
 
