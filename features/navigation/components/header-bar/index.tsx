@@ -4,11 +4,17 @@ import {
   Check,
   ChevronDown,
   PanelLeft,
-  Plus,
   Search,
   Settings,
 } from "lucide-react-native";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useRouter } from "expo-router";
 
 import { Colors, Fonts } from "@/constants/theme";
@@ -18,13 +24,18 @@ import { PiLogo } from "@/components/pi-logo";
 import { useServersStore, type Server } from "@/features/servers/store";
 import { useAuthStore } from "@/features/auth/store";
 import { useWorkspaceStore } from "@/features/workspace/store";
+import { useAppMode } from "@/hooks/use-app-mode";
 
 interface HeaderBarProps {
   onToggleSidebar: () => void;
+  onToggleChatSidebar?: () => void;
   sidebarVisible: boolean;
 }
 
-export function HeaderBar({ onToggleSidebar, sidebarVisible }: HeaderBarProps) {
+export function HeaderBar({
+  onToggleSidebar,
+  onToggleChatSidebar,
+}: HeaderBarProps) {
   const colorScheme = useColorScheme() ?? "light";
   const colors = Colors[colorScheme];
   const isDark = colorScheme === "dark";
@@ -35,21 +46,21 @@ export function HeaderBar({ onToggleSidebar, sidebarVisible }: HeaderBarProps) {
 
   const activeServerId = useAuthStore((s) => s.activeServerId);
   const activateServer = useAuthStore((s) => s.activateServer);
-  const hasToken = useAuthStore((s) => s.hasToken);
   const servers = useServersStore((s) => s.servers);
   const activeServer = servers.find((s) => s.id === activeServerId);
   const fetchWorkspaces = useWorkspaceStore((s) => s.fetchWorkspaces);
+  const isCodeMode = useAppMode() === "code";
 
   useEffect(() => {
-    if (Platform.OS !== 'web') return;
+    if (Platform.OS !== "web") return;
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
+      if ((e.metaKey || e.ctrlKey) && e.key === "p") {
         e.preventDefault();
         setPaletteVisible(true);
       }
     };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
   }, []);
 
   useEffect(() => {
@@ -74,7 +85,8 @@ export function HeaderBar({ onToggleSidebar, sidebarVisible }: HeaderBarProps) {
       const ok = await activateServer(server);
       if (ok) {
         await fetchWorkspaces();
-        const { workspaces, selectedWorkspaceId } = useWorkspaceStore.getState();
+        const { workspaces, selectedWorkspaceId } =
+          useWorkspaceStore.getState();
         const targetId = selectedWorkspaceId ?? workspaces[0]?.id;
         if (targetId) {
           router.replace(`/workspace/${targetId}`);
@@ -91,7 +103,6 @@ export function HeaderBar({ onToggleSidebar, sidebarVisible }: HeaderBarProps) {
   const borderColor = isDark ? "#3b3a39" : "rgba(0,0,0,0.12)";
   const textPrimary = isDark ? "#fefdfd" : colors.text;
   const textMuted = isDark ? "#cdc8c5" : colors.textTertiary;
-  const textDim = isDark ? "#afaca9" : colors.textTertiary;
   const popoverBg = isDark ? "#252525" : "#FFFFFF";
   const hoverBg = isDark ? "#333" : "#F5F5F5";
 
@@ -99,7 +110,7 @@ export function HeaderBar({ onToggleSidebar, sidebarVisible }: HeaderBarProps) {
     <View style={[styles.container, { backgroundColor: bg }]}>
       <View style={styles.leftSection}>
         <Pressable
-          onPress={onToggleSidebar}
+          onPress={isCodeMode ? onToggleSidebar : onToggleChatSidebar}
           style={({ pressed }) => [
             styles.sidebarToggle,
             { backgroundColor: btnBg },
@@ -109,7 +120,7 @@ export function HeaderBar({ onToggleSidebar, sidebarVisible }: HeaderBarProps) {
           <PanelLeft size={16} color={textPrimary} strokeWidth={1.8} />
         </Pressable>
 
-        <View {...{ "data-server-popover": true } as any}>
+        <View {...({ "data-server-popover": true } as any)}>
           <Pressable
             onPress={() => setPopoverVisible((v) => !v)}
             style={({ pressed }) => [
@@ -160,7 +171,11 @@ export function HeaderBar({ onToggleSidebar, sidebarVisible }: HeaderBarProps) {
                       disabled={isSwitching}
                       style={({ pressed, hovered }: any) => [
                         styles.popoverItem,
-                        isActive && { backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)" },
+                        isActive && {
+                          backgroundColor: isDark
+                            ? "rgba(255,255,255,0.06)"
+                            : "rgba(0,0,0,0.04)",
+                        },
                         (pressed || hovered) && { backgroundColor: hoverBg },
                       ]}
                     >
@@ -199,7 +214,9 @@ export function HeaderBar({ onToggleSidebar, sidebarVisible }: HeaderBarProps) {
                   );
                 })}
               </ScrollView>
-              <View style={[styles.popoverFooter, { borderTopColor: borderColor }]}>
+              <View
+                style={[styles.popoverFooter, { borderTopColor: borderColor }]}
+              >
                 <Pressable
                   onPress={() => {
                     setPopoverVisible(false);
@@ -211,7 +228,9 @@ export function HeaderBar({ onToggleSidebar, sidebarVisible }: HeaderBarProps) {
                   ]}
                 >
                   <Settings size={13} color={textMuted} strokeWidth={1.8} />
-                  <Text style={[styles.popoverFooterText, { color: textMuted }]}>
+                  <Text
+                    style={[styles.popoverFooterText, { color: textMuted }]}
+                  >
                     Manage Servers
                   </Text>
                 </Pressable>
@@ -221,24 +240,7 @@ export function HeaderBar({ onToggleSidebar, sidebarVisible }: HeaderBarProps) {
         </View>
       </View>
 
-      <Pressable
-        onPress={() => setPaletteVisible(true)}
-        style={({ pressed }) => [
-          styles.searchBar,
-          { borderColor },
-          pressed && { opacity: 0.7 },
-        ]}
-      >
-        <View style={styles.searchLeft}>
-          <Search size={14} color={textMuted} strokeWidth={2} />
-          <Text style={[styles.searchText, { color: textMuted }]}>
-            Search agent
-          </Text>
-        </View>
-        <Text style={[styles.shortcutText, { color: textDim }]}>
-          {Platform.OS === 'web' ? '\u2318P' : 'Search'}
-        </Text>
-      </Pressable>
+      <View style={styles.centerSection} />
 
       <CommandPalette
         visible={paletteVisible}
@@ -246,6 +248,15 @@ export function HeaderBar({ onToggleSidebar, sidebarVisible }: HeaderBarProps) {
       />
 
       <View style={styles.rightSection}>
+        <Pressable
+          onPress={() => setPaletteVisible(true)}
+          style={({ pressed }) => [
+            styles.headerBtn,
+            pressed && { opacity: 0.7 },
+          ]}
+        >
+          <Search size={16} color={textMuted} strokeWidth={1.8} />
+        </Pressable>
         <View>
           <Pressable style={styles.headerBtn}>
             <Bell size={16} color={textMuted} strokeWidth={1.8} />
@@ -269,6 +280,13 @@ const styles = StyleSheet.create({
   leftSection: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  centerSection: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
   },
   sidebarToggle: {
     width: 32,
@@ -373,30 +391,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  searchBar: {
-    width: 240,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 0.633,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingLeft: 6,
-    paddingRight: 8,
-  },
-  searchLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  searchText: {
-    fontSize: 13,
-    fontFamily: Fonts.sans,
-  },
-  shortcutText: {
-    fontSize: 12,
-    fontFamily: Fonts.sans,
-  },
+
   rightSection: {
     flexDirection: "row",
     alignItems: "center",

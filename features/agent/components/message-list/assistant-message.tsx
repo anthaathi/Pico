@@ -1,6 +1,5 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useEffect, useMemo, useState } from "react";
 import {
-  Animated as RNAnimated,
   Pressable,
   StyleSheet,
   Text,
@@ -72,10 +71,27 @@ const cursorStyles = StyleSheet.create({
   },
 });
 
-export function AssistantMessage({
+function areToolCallArraysEqual(
+  left?: ToolCallInfo[],
+  right?: ToolCallInfo[],
+): boolean {
+  if (left === right) return true;
+  if (!left || !right) return !left && !right;
+  if (left.length !== right.length) return false;
+
+  for (let i = 0; i < left.length; i++) {
+    if (left[i] !== right[i]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function AssistantMessageComponent({
   message,
   toolCalls: overrideToolCalls,
-  animateOnMount = true,
+  animateOnMount: _animateOnMount = true,
 }: {
   message: ChatMessage;
   toolCalls?: ToolCallInfo[];
@@ -90,57 +106,73 @@ export function AssistantMessage({
   const hasThinking = !!message.thinking && message.thinking.length > 0;
   const hasToolCalls =
     !!effectiveToolCalls && effectiveToolCalls.length > 0;
-  const hasError =
-    message.stopReason === "error" &&
+  const hasNotice =
+    ["error", "aborted"].includes(message.stopReason ?? "") &&
     !!message.errorMessage &&
     message.errorMessage.length > 0;
+  const noticeLabel =
+    message.stopReason === "aborted" ? "Stopped" : "Request Failed";
+  const noticeMeta = [message.provider, message.model]
+    .filter(Boolean)
+    .join(" · ");
 
   const markdownOptions = useMemo<useMarkdownHookOptions>(
     () => (isDark ? markedDarkOptions : markedLightOptions),
     [isDark],
   );
   const markdownElements = useMarkdown(message.text, markdownOptions);
-
-  const shouldAnimate = animateOnMount && !message.isStreaming;
-
-  const fadeOpacity = useRef(
-    new RNAnimated.Value(shouldAnimate ? 0 : 1),
-  ).current;
-  const fadeTranslateY = useRef(
-    new RNAnimated.Value(shouldAnimate ? 6 : 0),
-  ).current;
-
-  useEffect(() => {
-    if (!shouldAnimate) {
-      fadeOpacity.setValue(1);
-      fadeTranslateY.setValue(0);
-      return;
-    }
-
-    const animation = RNAnimated.parallel([
-      RNAnimated.timing(fadeOpacity, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      RNAnimated.timing(fadeTranslateY, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]);
-
-    animation.start();
-    return () => animation.stop();
-  }, [shouldAnimate, fadeOpacity, fadeTranslateY]);
-
-  return (
-    <RNAnimated.View
+  const groupedToolCalls = useMemo(
+    () => (effectiveToolCalls ? groupToolCalls(effectiveToolCalls) : []),
+    [effectiveToolCalls],
+  );
+  const noticeBlock = hasNotice ? (
+    <View
       style={[
-        styles.container,
-        { opacity: fadeOpacity, transform: [{ translateY: fadeTranslateY }] },
+        styles.errorBlock,
+        {
+          backgroundColor: isDark ? "#171313" : "#FCF8F7",
+        },
       ]}
     >
+      <View style={styles.errorHeader}>
+        <AlertCircle
+          size={14}
+          color={isDark ? "#C28B84" : "#B35B52"}
+          strokeWidth={1.9}
+        />
+        <Text
+          style={[
+            styles.errorLabel,
+            { color: isDark ? "#CDA7A2" : "#9C5B54" },
+          ]}
+        >
+          {noticeLabel}
+        </Text>
+        {noticeMeta ? (
+          <Text
+            style={[
+              styles.errorMeta,
+              { color: isDark ? "#8E7570" : "#AD817A" },
+            ]}
+          >
+            {noticeMeta}
+          </Text>
+        ) : null}
+      </View>
+      <Text
+        style={[
+          styles.errorText,
+          { color: isDark ? "#CDBAB7" : "#6C5552" },
+        ]}
+        selectable
+      >
+        {message.errorMessage}
+      </Text>
+    </View>
+  ) : null;
+
+  return (
+    <View style={styles.container}>
       {hasThinking && (
         <Pressable
           style={styles.thinkingToggle}
@@ -197,48 +229,18 @@ export function AssistantMessage({
         </View>
       )}
 
-      {hasError && (
-        <View
-          style={[
-            styles.errorBlock,
-            {
-              backgroundColor: isDark ? "#171313" : "#FCF8F7",
-            },
-          ]}
-        >
-          <View style={styles.errorHeader}>
-            <AlertCircle
-              size={14}
-              color={isDark ? "#C28B84" : "#B35B52"}
-              strokeWidth={1.9}
-            />
-            <Text
-              style={[
-                styles.errorLabel,
-                { color: isDark ? "#CDA7A2" : "#9C5B54" },
-              ]}
-            >
-              Request Failed
-            </Text>
-          </View>
-          <Text
-            style={[
-              styles.errorText,
-              { color: isDark ? "#CDBAB7" : "#6C5552" },
-            ]}
-            selectable
-          >
-            {message.errorMessage}
-          </Text>
-        </View>
-      )}
-
       {message.text.length > 0 && (
         <View style={styles.markdownWrap}>
           {markdownElements.map((el, i) => (
-            <Fragment key={i}>{el}</Fragment>
+            <View key={i} style={styles.markdownBlock}>
+              {el}
+            </View>
           ))}
-          {message.isStreaming && !hasToolCalls && <StreamingCursor />}
+          {message.isStreaming && !hasToolCalls && (
+            <View style={styles.cursorWrap}>
+              <StreamingCursor />
+            </View>
+          )}
         </View>
       )}
 
@@ -246,20 +248,34 @@ export function AssistantMessage({
         <StreamingCursor />
       )}
 
+      {noticeBlock}
+
       {hasToolCalls && (
         <View style={styles.toolCalls}>
-          {groupToolCalls(effectiveToolCalls!).map((item) => (
+          {groupedToolCalls.map((item) => (
             <ToolCallGroup
               key={item.key}
               toolName={item.toolName}
               calls={item.calls}
             />
           ))}
+          {message.isStreaming && (
+            <View style={styles.toolStreaming}>
+              <StreamingCursor />
+            </View>
+          )}
         </View>
       )}
-    </RNAnimated.View>
+    </View>
   );
 }
+
+export const AssistantMessage = memo(
+  AssistantMessageComponent,
+  (prev, next) =>
+    prev.message === next.message &&
+    areToolCallArraysEqual(prev.toolCalls, next.toolCalls),
+);
 
 const styles = StyleSheet.create({
   container: {
@@ -304,6 +320,10 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.sansMedium,
     letterSpacing: 0.2,
   },
+  errorMeta: {
+    fontSize: 11,
+    fontFamily: Fonts.sans,
+  },
   errorText: {
     fontSize: 12.5,
     lineHeight: 19,
@@ -312,8 +332,17 @@ const styles = StyleSheet.create({
   markdownWrap: {
     gap: 4,
   },
+  markdownBlock: {
+    minWidth: 0,
+  },
+  cursorWrap: {
+    paddingTop: 2,
+  },
   toolCalls: {
     gap: 10,
     marginTop: 6,
+  },
+  toolStreaming: {
+    paddingTop: 2,
   },
 });

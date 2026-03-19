@@ -1,10 +1,11 @@
+import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { Colors, Fonts } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import type { ChatMessage } from "../../types";
 
-export function UserMessage({ message }: { message: ChatMessage }) {
+function UserMessageComponent({ message }: { message: ChatMessage }) {
   const colorScheme = useColorScheme() ?? "light";
   const colors = Colors[colorScheme];
   const isDark = colorScheme === "dark";
@@ -32,6 +33,11 @@ export function UserMessage({ message }: { message: ChatMessage }) {
     </View>
   );
 }
+
+export const UserMessage = memo(
+  UserMessageComponent,
+  (prev, next) => prev.message === next.message,
+);
 
 const styles = StyleSheet.create({
   row: {

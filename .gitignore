@@ -42,6 +42,7 @@ app-example
 # backend config (generated via `pi-server init`)
 backend/config.toml
 backend/*.db
+/pi-server.db
 backend/target/
 unsloth_compiled_cache/
 

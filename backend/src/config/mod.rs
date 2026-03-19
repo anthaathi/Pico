@@ -16,11 +16,24 @@ pub struct AppConfig {
     pub package: PackageConfig,
     pub sessions: Option<SessionsConfig>,
     pub agent: Option<AgentConfig>,
+    pub chat: Option<ChatConfig>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct AgentConfig {
     pub pi_binary: Option<String>,
+}
+
+fn default_no_tools() -> bool {
+    true
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ChatConfig {
+    pub system_prompt: Option<String>,
+    pub cwd: Option<String>,
+    #[serde(default = "default_no_tools")]
+    pub no_tools: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -74,6 +87,7 @@ impl Default for AppConfig {
             },
             sessions: None,
             agent: None,
+            chat: None,
         }
     }
 }
@@ -155,5 +169,24 @@ impl AppConfig {
 
     pub fn server_id(&self) -> &str {
         self.server.server_id.as_deref().unwrap_or("unknown")
+    }
+
+    pub fn chat_cwd(&self) -> String {
+        self.chat
+            .as_ref()
+            .and_then(|c| c.cwd.as_ref())
+            .cloned()
+            .unwrap_or_else(|| {
+                let home = std::env::var("HOME").unwrap_or_else(|_| "/root".into());
+                format!("{home}/.pi/chat")
+            })
+    }
+
+    pub fn chat_system_prompt(&self) -> Option<String> {
+        self.chat.as_ref().and_then(|c| c.system_prompt.clone())
+    }
+
+    pub fn chat_no_tools(&self) -> bool {
+        self.chat.as_ref().map(|c| c.no_tools).unwrap_or(true)
     }
 }

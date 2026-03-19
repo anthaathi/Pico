@@ -8531,6 +8531,8 @@ __metadata:
     "@expo/vector-icons": "npm:^15.0.3"
     "@hey-api/client-fetch": "npm:^0.13.1"
     "@hey-api/openapi-ts": "npm:^0.94.2"
+    "@jsamr/counter-style": "npm:2.0.2"
+    "@jsamr/react-native-li": "npm:2.3.1"
     "@react-navigation/bottom-tabs": "npm:^7.4.0"
     "@react-navigation/elements": "npm:^2.6.3"
     "@react-navigation/native": "npm:^7.1.8"
@@ -8556,20 +8558,25 @@ __metadata:
     expo-symbols: "npm:~1.0.8"
     expo-system-ui: "npm:~6.0.9"
     expo-web-browser: "npm:~15.0.10"
+    github-slugger: "npm:2.0.0"
+    html-entities: "npm:2.6.0"
     lucide-react-native: "npm:^0.577.0"
+    marked: "npm:17.0.4"
     react: "npm:19.1.0"
     react-dom: "npm:19.1.0"
     react-native: "npm:0.81.5"
     react-native-gesture-handler: "npm:~2.28.0"
-    react-native-marked: "npm:^8.0.1"
+    react-native-marked: "link:./packages/react-native-marked"
     react-native-pager-view: "npm:6.9.1"
     react-native-reanimated: "npm:~4.1.1"
+    react-native-reanimated-table: "npm:0.0.2"
     react-native-safe-area-context: "npm:~5.6.0"
     react-native-screens: "npm:~4.16.0"
     react-native-sse: "patch:react-native-sse@npm%3A1.2.1#~/.yarn/patches/react-native-sse-npm-1.2.1-750984c79d.patch"
     react-native-svg: "npm:15.12.1"
     react-native-web: "npm:~0.21.0"
     react-native-worklets: "npm:0.5.1"
+    svg-parser: "npm:2.0.4"
     typescript: "npm:~5.9.2"
     zustand: "npm:^5.0.12"
   languageName: unknown
@@ -8906,24 +8913,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-native-marked@npm:^8.0.1":
-  version: 8.0.1
-  resolution: "react-native-marked@npm:8.0.1"
-  dependencies:
-    "@jsamr/counter-style": "npm:2.0.2"
-    "@jsamr/react-native-li": "npm:2.3.1"
-    github-slugger: "npm:2.0.0"
-    html-entities: "npm:2.6.0"
-    marked: "npm:17.0.4"
-    react-native-reanimated-table: "npm:0.0.2"
-    svg-parser: "npm:2.0.4"
-  peerDependencies:
-    react: ">=16.8.6"
-    react-native: ">=0.76.0"
-    react-native-svg: ">=12.3.0"
-  checksum: 10c0/2a1e1ea2d0c6100e74ff3c81ca567a2b9808b96377ed20e9a7250364487a241afe628ef2c1e50db6fb134c4d603067eb1e7b49363bdcfb7fb2f8a2ace10c1ef6
+"react-native-marked@link:./packages/react-native-marked::locator=pi-ui%40workspace%3A.":
+  version: 0.0.0-use.local
+  resolution: "react-native-marked@link:./packages/react-native-marked::locator=pi-ui%40workspace%3A."
   languageName: node
-  linkType: hard
+  linkType: soft
 
 "react-native-pager-view@npm:6.9.1":
   version: 6.9.1

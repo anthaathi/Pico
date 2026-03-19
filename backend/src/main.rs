@@ -114,6 +114,10 @@ const QR_ROTATE_MINUTES: u64 = 5;
         routes::agent::set_session_name,
         routes::agent::get_commands,
         routes::agent::extension_ui_response,
+        routes::chat::create_session,
+        routes::chat::list_sessions,
+        routes::chat::delete_session,
+        routes::chat::touch_session,
         routes::custom_models::get_custom_models,
         routes::custom_models::save_custom_models,
     ),
@@ -185,6 +189,8 @@ const QR_ROTATE_MINUTES: u64 = 5;
         services::agent::AgentSessionInfo,
         services::agent::ActiveSessionSummary,
         services::agent::StreamEvent,
+        routes::chat::CreateChatSessionRequest,
+        routes::chat::TouchChatSessionRequest,
         routes::custom_models::CustomModelsConfig,
         routes::custom_models::CustomProvider,
         routes::custom_models::CustomModelEntry,
@@ -200,6 +206,7 @@ const QR_ROTATE_MINUTES: u64 = 5;
         (name = "filesystem", description = "Filesystem path autocomplete"),
         (name = "git", description = "Git repository operations"),
         (name = "agent", description = "Pi coding agent RPC management"),
+        (name = "chat", description = "Chat mode sessions (no workspace required)"),
         (name = "custom-models", description = "Custom model provider configuration"),
     ),
     info(
@@ -421,6 +428,16 @@ async fn async_main() -> anyhow::Result<()> {
             "/agent/extension-ui-response",
             post(routes::agent::extension_ui_response),
         )
+        .route("/chat/sessions", post(routes::chat::create_session))
+        .route("/chat/sessions", get(routes::chat::list_sessions))
+        .route(
+            "/chat/sessions/{session_id}",
+            delete(routes::chat::delete_session),
+        )
+        .route(
+            "/chat/sessions/{session_id}/touch",
+            post(routes::chat::touch_session),
+        )
         .route("/custom-models", get(routes::custom_models::get_custom_models))
         .route(
             "/custom-models",
@@ -529,6 +546,7 @@ fn run_init() -> anyhow::Result<()> {
         },
         sessions: None,
         agent: None,
+        chat: None,
     };
 
     let mut final_config = config;

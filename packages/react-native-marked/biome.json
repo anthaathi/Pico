@@ -1,0 +1,40 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.3.8/schema.json",
+	"assist": {
+		"actions": {
+			"source": {
+				"organizeImports": "on"
+			}
+		}
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"correctness": {
+				"noRenderReturnValue": "off"
+			},
+			"suspicious": {
+				"noArrayIndexKey": "info"
+			}
+		}
+	},
+	"formatter": {
+		"enabled": true
+	},
+	"files": {
+		"includes": [
+			"src/**",
+			"examples/**",
+			"dangerfile.ts",
+			"biome.json",
+			"package.json",
+			"renovate.json",
+			"tsconfig.json",
+			"babel.config.js"
+		]
+	},
+	"javascript": {
+		"jsxRuntime": "reactClassic"
+	}
+}

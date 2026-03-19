@@ -1,4 +1,10 @@
-import { ReactNode, useRef, useState, useCallback, useEffect } from "react";
+import {
+  ReactNode,
+  useRef,
+  useState,
+  useCallback,
+  useEffect,
+} from "react";
 import {
   Animated,
   PanResponder,
@@ -8,6 +14,7 @@ import {
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -20,11 +27,17 @@ import { MobileChangesSheet } from "../../components/mobile-changes-sheet";
 import { SessionSidebar } from "@/features/workspace/components/session-sidebar";
 import { useAuthStore } from "@/features/auth/store";
 import { useWorkspaceStore } from "@/features/workspace/store";
+import { useAppMode } from "@/hooks/use-app-mode";
+import { AppModeToggle } from "../../components/app-mode-toggle";
+import { ChatSidebar } from "@/features/chat/components/chat-sidebar";
+import { ChatSheet } from "@/features/chat/components/chat-sheet";
+import { useChatStore } from "@/features/chat/store";
 import { ConnectionStatusBanner } from "@/features/agent/components/connection-status-banner";
 
 const SIDEBAR_DEFAULT = 280;
 const SIDEBAR_MIN = 200;
 const SIDEBAR_MAX = 480;
+const RAIL_WIDTH = 64;
 
 type SidebarMode = "persistent" | "hover";
 
@@ -39,9 +52,14 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
   const activeServerId = useAuthStore((s) => s.activeServerId);
   const hasServer = !!activeServerId;
   const hasWorkspaces = useWorkspaceStore((s) => s.workspaces.length > 0);
+  const appMode = useAppMode();
+  const isCodeMode = appMode === "code";
+  const isChatMode = appMode === "chat";
   const showSessions = hasServer && hasWorkspaces;
   const [sheetVisible, setSheetVisible] = useState(false);
   const [changesSheetVisible, setChangesSheetVisible] = useState(false);
+  const [chatSidebarVisible, setChatSidebarVisible] = useState(false);
+  const [chatSheetVisible, setChatSheetVisible] = useState(false);
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>("persistent");
   const [hoverVisible, setHoverVisible] = useState(false);
   const [showPersistentSidebar, setShowPersistentSidebar] = useState(true);
@@ -55,10 +73,46 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
 
   const persistentAnim = useRef(new Animated.Value(1)).current;
   const hoverAnim = useRef(new Animated.Value(0)).current;
+  const codeModeAnim = useRef(new Animated.Value(isCodeMode ? 1 : 0)).current;
+  const [railMounted, setRailMounted] = useState(isCodeMode);
+  const chatSidebarAnim = useRef(new Animated.Value(0)).current;
+  const [chatSidebarMounted, setChatSidebarMounted] = useState(false);
 
   const isPersistent = sidebarMode === "persistent";
 
-  // Animate persistent sidebar width, only unmount after close animation finishes
+  useEffect(() => {
+    if (isCodeMode) {
+      setRailMounted(true);
+    }
+    Animated.spring(codeModeAnim, {
+      toValue: isCodeMode ? 1 : 0,
+      tension: 200,
+      friction: 24,
+      useNativeDriver: false,
+    }).start(({ finished }) => {
+      if (finished && !isCodeMode) {
+        setRailMounted(false);
+      }
+    });
+  }, [isCodeMode, codeModeAnim]);
+
+  useEffect(() => {
+    const shouldShow = isChatMode && chatSidebarVisible;
+    if (shouldShow) {
+      setChatSidebarMounted(true);
+    }
+    Animated.spring(chatSidebarAnim, {
+      toValue: shouldShow ? 1 : 0,
+      tension: 200,
+      friction: 24,
+      useNativeDriver: false,
+    }).start(({ finished }) => {
+      if (finished && !shouldShow) {
+        setChatSidebarMounted(false);
+      }
+    });
+  }, [isChatMode, chatSidebarVisible, chatSidebarAnim]);
+
   useEffect(() => {
     if (isPersistent) {
       setShowPersistentSidebar(true);
@@ -75,7 +129,6 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
     });
   }, [isPersistent, persistentAnim]);
 
-  // Animate hover sidebar slide
   useEffect(() => {
     Animated.spring(hoverAnim, {
       toValue: hoverVisible && !isPersistent ? 1 : 0,
@@ -88,6 +141,10 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
   const handleToggleSidebar = useCallback(() => {
     setSidebarMode((prev) => (prev === "persistent" ? "hover" : "persistent"));
     setHoverVisible(false);
+  }, []);
+
+  const handleToggleChatSidebar = useCallback(() => {
+    setChatSidebarVisible((prev) => !prev);
   }, []);
 
   const handleRailHoverIn = useCallback(() => {
@@ -106,7 +163,6 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
     if (!isPersistent) setHoverVisible(false);
   }, [isPersistent]);
 
-  // Resize via PanResponder (works on web + native)
   const startWidthRef = useRef(SIDEBAR_DEFAULT);
   const resizePanResponder = useRef(
     PanResponder.create({
@@ -145,16 +201,45 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
     }),
   ).current;
 
+  const router = useRouter();
+  const chatSelectSession = useChatStore((s) => s.selectSession);
+
+  const handleChatNewSession = useCallback(() => {
+    chatSelectSession(null);
+    router.replace('/chat');
+  }, [chatSelectSession, router]);
+
+  const handleChatSelectSession = useCallback(
+    (sessionId: string, _filePath: string) => {
+      chatSelectSession(sessionId);
+      router.replace({ pathname: '/chat/[sessionId]', params: { sessionId } });
+    },
+    [chatSelectSession, router],
+  );
+
   if (isWideScreen) {
-    const animatedSidebarWidth = persistentAnim.interpolate({
+    const animatedRailWidth = codeModeAnim.interpolate({
       inputRange: [0, 1],
-      outputRange: [0, sidebarWidth],
+      outputRange: [0, RAIL_WIDTH],
     });
 
-    const contentBorderRadius = persistentAnim.interpolate({
+    const animatedSidebarWidth = Animated.multiply(
+      persistentAnim,
+      Animated.multiply(codeModeAnim, sidebarWidth),
+    );
+
+    const contentBorderWidth = codeModeAnim.interpolate({
       inputRange: [0, 1],
-      outputRange: [12, 0],
+      outputRange: [0, 0.633],
     });
+
+    const contentBorderRadius = Animated.multiply(
+      persistentAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [12, 0],
+      }),
+      codeModeAnim,
+    );
 
     const hoverTranslateX = hoverAnim.interpolate({
       inputRange: [0, 1],
@@ -179,24 +264,40 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
         style={[styles.wideContainer, { backgroundColor: colors.background }]}
         edges={["top"]}
       >
+        <View
+          style={[
+            styles.modeToggleRow,
+            { backgroundColor: isDark ? "#1a1a1a" : "#F5F4F1" },
+          ]}
+        >
+          <AppModeToggle />
+        </View>
         {hasServer ? (
           <HeaderBar
             onToggleSidebar={handleToggleSidebar}
+            onToggleChatSidebar={handleToggleChatSidebar}
             sidebarVisible={isPersistent}
           />
         ) : (
           <View style={{ height: 0 }} />
         )}
         <View style={styles.bodyRow}>
-          {/* Navigation rail with hover zone */}
-          {hasServer && (
-            <View {...webHoverProps}>
-              <NavigationRail />
-            </View>
+          {hasServer && railMounted && (
+            <Animated.View
+              style={{
+                width: animatedRailWidth,
+                overflow: "hidden",
+                height: "100%",
+              }}
+              {...webHoverProps}
+            >
+              <View style={{ width: RAIL_WIDTH, height: "100%" }}>
+                <NavigationRail />
+              </View>
+            </Animated.View>
           )}
 
-          {/* Persistent sidebar (inline, animated width) */}
-          {showSessions && showPersistentSidebar && (
+          {showSessions && showPersistentSidebar && railMounted && (
             <Animated.View
               style={{
                 width: animatedSidebarWidth,
@@ -224,31 +325,68 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
             </Animated.View>
           )}
 
-          {/* Content area */}
+          {chatSidebarMounted && (
+            <Animated.View
+              style={{
+                width: chatSidebarAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, SIDEBAR_DEFAULT],
+                }),
+                overflow: "hidden",
+                height: "100%",
+              }}
+            >
+              <View style={{ width: SIDEBAR_DEFAULT, height: "100%" }}>
+                <ChatSidebar
+                  onNewSession={handleChatNewSession}
+                  onSelectSession={handleChatSelectSession}
+                />
+              </View>
+            </Animated.View>
+          )}
+
           <Animated.View
             style={[
               styles.content,
-              hasServer
+              hasServer && isCodeMode
                 ? {
+                    borderLeftWidth: contentBorderWidth,
+                    borderTopWidth: contentBorderWidth,
                     borderLeftColor: contentBorder,
                     borderTopColor: contentBorder,
                     borderTopLeftRadius: contentBorderRadius,
                   }
-                : {},
+                : chatSidebarMounted
+                  ? {
+                      borderLeftWidth: chatSidebarAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 0.633],
+                      }),
+                      borderTopWidth: chatSidebarAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 0.633],
+                      }),
+                      borderLeftColor: contentBorder,
+                      borderTopColor: contentBorder,
+                      borderTopLeftRadius: chatSidebarAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 12],
+                      }),
+                    }
+                  : {},
             ]}
           >
             {children}
 
-            {/* Hover overlay sidebar */}
-            {showSessions && !isPersistent && (
+            {showSessions && !isPersistent && isCodeMode && (
               <>
                 <Animated.View
-                  pointerEvents={hoverVisible ? "auto" : "none"}
                   style={[
                     styles.overlay,
                     {
                       backgroundColor: overlayBg,
                       opacity: hoverAnim,
+                      pointerEvents: hoverVisible ? "auto" : "none",
                     },
                   ]}
                 />
@@ -280,10 +418,19 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
         style={[styles.narrowSafeArea, { backgroundColor: colors.background }]}
         edges={["top"]}
       >
+        <View
+          style={[
+            styles.modeToggleRow,
+            { backgroundColor: isDark ? "#1a1a1a" : "#F5F4F1" },
+          ]}
+        >
+          <AppModeToggle />
+        </View>
         {hasServer && (
           <MobileHeaderBar
             onWorkspacePress={() => setSheetVisible(true)}
             onGitPress={() => setChangesSheetVisible(true)}
+            onChatSessionsPress={() => setChatSheetVisible(true)}
           />
         )}
         <View style={styles.mobileContent}>
@@ -291,7 +438,7 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
         </View>
         {hasServer && <ConnectionStatusBanner />}
       </SafeAreaView>
-      {hasServer && (
+      {hasServer && isCodeMode && (
         <>
           <WorkspaceSheet
             visible={sheetVisible}
@@ -305,6 +452,12 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
           )}
         </>
       )}
+      {isChatMode && (
+        <ChatSheet
+          visible={chatSheetVisible}
+          onClose={() => setChatSheetVisible(false)}
+        />
+      )}
     </GestureHandlerRootView>
   );
 }
@@ -312,6 +465,10 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
 const styles = StyleSheet.create({
   wideContainer: {
     flex: 1,
+  },
+  modeToggleRow: {
+    alignItems: "center",
+    paddingVertical: 8,
   },
   bodyRow: {
     flex: 1,
@@ -325,13 +482,12 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    borderLeftWidth: 0.633,
-    borderTopWidth: 0.633,
     overflow: "hidden",
   },
   mobileContent: {
     flex: 1,
   },
+
   overlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 10,

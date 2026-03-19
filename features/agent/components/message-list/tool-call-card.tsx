@@ -1,34 +1,34 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { ChevronDown, ChevronRight } from "lucide-react-native";
 
 import { Colors, Fonts } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import type { ToolCallInfo } from "../../types";
+import {
+  getToolStatusLabel,
+  parseToolArguments,
+} from "./tool-call-utils";
 
 function formatToolLabel(name: string, args: string): string {
-  try {
-    const parsed = JSON.parse(args);
-    switch (name) {
-      case "bash":
-        return parsed.command
-          ? `$ ${parsed.command.slice(0, 80)}`
-          : "bash";
-      case "read":
-        return parsed.path ?? "read";
-      case "edit":
-        return parsed.path ?? "edit";
-      case "write":
-        return parsed.path ?? "write";
-      default:
-        return name;
-    }
-  } catch {
-    return name;
+  const parsed = parseToolArguments(args);
+  switch (name) {
+    case "bash":
+      return parsed.command
+        ? `$ ${parsed.command.slice(0, 80)}`
+        : "bash";
+    case "read":
+      return parsed.path ?? "read";
+    case "edit":
+      return parsed.path ?? "edit";
+    case "write":
+      return parsed.path ?? "write";
+    default:
+      return name;
   }
 }
 
-export function ToolCallCard({ toolCall }: { toolCall: ToolCallInfo }) {
+function ToolCallCardComponent({ toolCall }: { toolCall: ToolCallInfo }) {
   const colorScheme = useColorScheme() ?? "light";
   const colors = Colors[colorScheme];
   const isDark = colorScheme === "dark";
@@ -40,6 +40,7 @@ export function ToolCallCard({ toolCall }: { toolCall: ToolCallInfo }) {
     toolCall.status === "running" ||
     toolCall.status === "streaming" ||
     toolCall.status === "pending";
+  const statusLabel = getToolStatusLabel(toolCall);
   const mutedColor = isDark ? "#666" : "#999";
 
   return (
@@ -58,8 +59,22 @@ export function ToolCallCard({ toolCall }: { toolCall: ToolCallInfo }) {
           numberOfLines={1}
         >
           {label}
-          {isRunning && " …"}
         </Text>
+        {statusLabel ? (
+          <Text
+            style={[styles.status, { color: mutedColor }]}
+            numberOfLines={1}
+          >
+            {statusLabel}
+          </Text>
+        ) : isRunning ? (
+          <Text
+            style={[styles.status, { color: mutedColor }]}
+            numberOfLines={1}
+          >
+            Running...
+          </Text>
+        ) : null}
       </Pressable>
 
       {expanded && output && (
@@ -87,6 +102,11 @@ export function ToolCallCard({ toolCall }: { toolCall: ToolCallInfo }) {
   );
 }
 
+export const ToolCallCard = memo(
+  ToolCallCardComponent,
+  (prev, next) => prev.toolCall === next.toolCall,
+);
+
 const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
@@ -98,6 +118,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: Fonts.mono,
     flexShrink: 1,
+  },
+  status: {
+    fontSize: 11,
+    fontFamily: Fonts.sans,
+    flexShrink: 0,
   },
   output: {
     paddingLeft: 16,

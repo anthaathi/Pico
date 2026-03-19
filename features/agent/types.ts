@@ -32,9 +32,17 @@ export interface ToolCallInfo {
   partialResult?: string;
 }
 
+export interface MessageUsageInfo {
+  input?: number;
+  output?: number;
+  cacheRead?: number;
+  cacheWrite?: number;
+  totalTokens?: number;
+}
+
 export interface ChatMessage {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   text: string;
   errorMessage?: string;
   thinking?: string;
@@ -42,5 +50,15 @@ export interface ChatMessage {
   timestamp: number;
   isStreaming?: boolean;
   model?: string;
+  provider?: string;
+  api?: string;
+  responseId?: string;
+  usage?: MessageUsageInfo;
   stopReason?: string;
+  systemKind?: "bashExecution" | "event";
+  command?: string;
+  exitCode?: number;
+  cancelled?: boolean;
+  truncated?: boolean;
+  fullOutputPath?: string | null;
 }

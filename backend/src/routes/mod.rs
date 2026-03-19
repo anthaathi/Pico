@@ -1,5 +1,6 @@
 pub mod agent;
 pub mod auth;
+pub mod chat;
 pub mod custom_models;
 pub mod fs;
 pub mod git;

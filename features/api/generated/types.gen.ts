@@ -131,6 +131,11 @@ export type CreateAgentSessionRequest = {
     workspace_id: string;
 };
 
+export type CreateChatSessionRequest = {
+    no_tools?: boolean | null;
+    system_prompt?: string | null;
+};
+
 export type CreateWorkspaceRequest = {
     color?: string | null;
     name: string;
@@ -425,6 +430,10 @@ export type StreamEvent = {
 export type TouchAgentSessionRequest = {
     session_file: string;
     workspace_id: string;
+};
+
+export type TouchChatSessionRequest = {
+    session_file: string;
 };
 
 export type UpdateWorkspaceRequest = {
@@ -1319,6 +1328,113 @@ export type CheckSessionResponses = {
      */
     200: unknown;
 };
+
+export type ListSessions2Data = {
+    body?: never;
+    path?: never;
+    query?: {
+        page?: number | null;
+        limit?: number | null;
+    };
+    url: '/api/chat/sessions';
+};
+
+export type ListSessions2Errors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type ListSessions2Responses = {
+    /**
+     * Paginated chat sessions
+     */
+    200: PaginatedSessions;
+};
+
+export type ListSessions2Response = ListSessions2Responses[keyof ListSessions2Responses];
+
+export type CreateSession2Data = {
+    body: CreateChatSessionRequest;
+    path?: never;
+    query?: never;
+    url: '/api/chat/sessions';
+};
+
+export type CreateSession2Errors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type CreateSession2Responses = {
+    /**
+     * Chat session created
+     */
+    200: AgentSessionInfo;
+};
+
+export type CreateSession2Response = CreateSession2Responses[keyof CreateSession2Responses];
+
+export type DeleteSessionData = {
+    body?: never;
+    path: {
+        /**
+         * Chat session ID
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/api/chat/sessions/{session_id}';
+};
+
+export type DeleteSessionErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type DeleteSessionResponses = {
+    /**
+     * Chat session deleted
+     */
+    200: unknown;
+};
+
+export type TouchSession2Data = {
+    body: TouchChatSessionRequest;
+    path: {
+        /**
+         * Chat session ID
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/api/chat/sessions/{session_id}/touch';
+};
+
+export type TouchSession2Errors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type TouchSession2Responses = {
+    /**
+     * Chat session touched/resumed
+     */
+    200: AgentSessionInfo;
+};
+
+export type TouchSession2Response = TouchSession2Responses[keyof TouchSession2Responses];
 
 export type GetCustomModelsData = {
     body?: never;

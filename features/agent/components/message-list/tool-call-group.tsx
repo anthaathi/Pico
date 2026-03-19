@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { ChevronDown, ChevronRight, Columns2, Rows2 } from "lucide-react-native";
@@ -6,20 +6,14 @@ import { ChevronDown, ChevronRight, Columns2, Rows2 } from "lucide-react-native"
 import { Colors, Fonts } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useAppSettingsStore, type DiffViewMode } from "@/features/settings/store";
+import { useFileRead } from "@/features/workspace/hooks/use-file-list";
 import type { ToolCallInfo } from "../../types";
 import { ToolCallCard } from "./tool-call-card";
-
-const MULTI_GROUP_LABELS: Record<string, (n: number) => string> = {
-  read: (n) => `Read ${n} files`,
-  edit: (n) => `Edited ${n} files`,
-  write: (n) => `Wrote ${n} files`,
-  bash: (n) => `Ran ${n} commands`,
-  python: (n) => `Ran Python ${n} times`,
-  search: (n) => `${n} web searches`,
-  scrape: (n) => `Scraped ${n} pages`,
-  crawl: (n) => `Crawled ${n} sites`,
-  subagent: (n) => `Ran ${n} sub-agents`,
-};
+import {
+  getToolStatusLabel,
+  isToolCallActive,
+  parseToolArguments,
+} from "./tool-call-utils";
 
 const SINGLE_VERB: Record<string, string> = {
   read: "Read",
@@ -32,6 +26,19 @@ const SINGLE_VERB: Record<string, string> = {
   crawl: "Crawl",
   subagent: "Sub-agent",
 };
+
+function areToolCallArraysEqual(left: ToolCallInfo[], right: ToolCallInfo[]): boolean {
+  if (left === right) return true;
+  if (left.length !== right.length) return false;
+
+  for (let i = 0; i < left.length; i++) {
+    if (left[i] !== right[i]) {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 function AnimatedNumber({ value, style }: { value: number; style?: any }) {
   const prevRef = useRef(value);
@@ -137,42 +144,35 @@ function formatSingleCall(tc: ToolCallInfo): {
   diffRemoved?: number;
 } {
   const verb = SINGLE_VERB[tc.name] ?? tc.name;
-  try {
-    const parsed = JSON.parse(tc.arguments);
-    switch (tc.name) {
-      case "read": {
-        const name = parsed.path ? basename(parsed.path) : "";
-        const params: string[] = [];
-        if (parsed.offset != null) params.push(`offset=${parsed.offset}`);
-        if (parsed.limit != null) params.push(`limit=${parsed.limit}`);
-        return { verb, detail: params.length ? `${name} ${params.join(" ")}` : name };
-      }
-      case "edit": {
-        const name = parsed.path ? basename(parsed.path) : "";
-        const added = countLines(parsed.newText ?? "");
-        const removed = countLines(parsed.oldText ?? "");
-        return { verb, detail: name, diffAdded: added, diffRemoved: removed };
-      }
-      case "write": {
-        const name = parsed.path ? basename(parsed.path) : "";
-        return { verb, detail: name };
-      }
-      case "bash": {
-        const cmd = parsed.command ?? "";
-        return { verb, detail: cmd.length > 60 ? cmd.slice(0, 60) + "…" : cmd };
-      }
-      default:
-        return { verb, detail: "" };
+  const parsed = parseToolArguments(tc.arguments);
+  switch (tc.name) {
+    case "read": {
+      const name = parsed.path ? basename(parsed.path) : "";
+      const params: string[] = [];
+      if (parsed.offset != null) params.push(`offset=${parsed.offset}`);
+      if (parsed.limit != null) params.push(`limit=${parsed.limit}`);
+      return {
+        verb,
+        detail: params.length ? `${name} ${params.join(" ")}` : name,
+      };
     }
-  } catch {
-    return { verb, detail: "" };
+    case "edit": {
+      const name = parsed.path ? basename(parsed.path) : "";
+      const added = countLines(parsed.newText ?? "");
+      const removed = countLines(parsed.oldText ?? "");
+      return { verb, detail: name, diffAdded: added, diffRemoved: removed };
+    }
+    case "write": {
+      const name = parsed.path ? basename(parsed.path) : "";
+      return { verb, detail: name };
+    }
+    case "bash": {
+      const cmd = parsed.command ?? "";
+      return { verb, detail: cmd.length > 60 ? cmd.slice(0, 60) + "…" : cmd };
+    }
+    default:
+      return { verb, detail: "" };
   }
-}
-
-function multiGroupLabel(toolName: string, count: number): string {
-  const fn = MULTI_GROUP_LABELS[toolName];
-  if (fn) return fn(count);
-  return `${count}× ${toolName}`;
 }
 
 const MULTI_GROUP_PARTS: Record<string, { before: string; after: string }> = {
@@ -198,19 +198,17 @@ function BashToolCall({ tc }: { tc: ToolCallInfo }) {
   const colorScheme = useColorScheme() ?? "light";
   const isDark = colorScheme === "dark";
 
-  const isRunning = tc.status === "running" || tc.status === "streaming" || tc.status === "pending";
+  const isRunning = isToolCallActive(tc);
   const isComplete = tc.status === "complete" || tc.status === "error";
+  const statusLabel = getToolStatusLabel(tc);
   const [expanded, setExpanded] = useState(!isComplete);
 
   useEffect(() => {
     if (isRunning) setExpanded(true);
   }, [isRunning]);
 
-  let command = "";
-  try {
-    const parsed = JSON.parse(tc.arguments);
-    command = parsed.command ?? "";
-  } catch {}
+  const parsed = parseToolArguments(tc.arguments);
+  const command = parsed.command ?? "";
 
   const output = tc.result ?? tc.partialResult;
   const textColor = isDark ? "#CCCCCC" : "#1A1A1A";
@@ -225,6 +223,9 @@ function BashToolCall({ tc }: { tc: ToolCallInfo }) {
         <Text style={styles.singleLine} numberOfLines={1}>
           <Text style={[styles.verb, { color: textColor }]}>Shell</Text>
           <Text style={[styles.detail, { color: mutedColor }]}> {shortCmd}</Text>
+          {statusLabel ? (
+            <Text style={[styles.status, { color: mutedColor }]}> {statusLabel}</Text>
+          ) : null}
         </Text>
         {expanded
           ? <ChevronDown size={13} color={mutedColor} strokeWidth={1.8} />
@@ -438,6 +439,20 @@ function buildInline(ops: DiffOp[]): InlineRow[] {
 
 interface Token { text: string; color: string }
 
+interface CodeRow {
+  lineNo: number;
+  text: string;
+}
+
+interface ParsedReadOutput {
+  body: string;
+  nextOffset?: number;
+  remainingLines?: number;
+}
+
+const READ_MORE_PATTERN =
+  /\n?\[(\d+) more lines in file\. Use offset=(\d+) to continue\.\]\s*$/;
+
 const KEYWORDS = new Set([
   "import", "export", "from", "default", "const", "let", "var", "function",
   "return", "if", "else", "for", "while", "do", "switch", "case", "break",
@@ -502,6 +517,77 @@ function TokenizedText({ line, isDark, style }: { line: string; isDark: boolean;
         <Text key={i} style={{ color: tok.color }}>{tok.text}</Text>
       ))}
     </Text>
+  );
+}
+
+function buildCodeRows(text: string, startLine: number): CodeRow[] {
+  if (text.length === 0) {
+    return [];
+  }
+  const lines = text.split("\n");
+  return lines.map((line, index) => ({
+    lineNo: startLine + index,
+    text: line,
+  }));
+}
+
+function parseReadOutput(text: string): ParsedReadOutput {
+  const match = text.match(READ_MORE_PATTERN);
+  if (!match || match.index == null) {
+    return { body: text };
+  }
+
+  return {
+    body: text.slice(0, match.index).replace(/\n+$/, ""),
+    remainingLines: Number.parseInt(match[1] ?? "", 10),
+    nextOffset: Number.parseInt(match[2] ?? "", 10),
+  };
+}
+
+function isResolvableFilePath(path: string): boolean {
+  return path.startsWith("/") || path.startsWith("~");
+}
+
+function CodePreview({
+  rows,
+  isDark,
+  lineNoBg,
+  lineNoColor,
+  rowBackgroundColor,
+}: {
+  rows: CodeRow[];
+  isDark: boolean;
+  lineNoBg: string;
+  lineNoColor: string;
+  rowBackgroundColor?: string;
+}) {
+  return (
+    <ScrollView style={editStyles.scrollV} nestedScrollEnabled>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View style={codeStyles.table}>
+          {rows.map((row) => (
+            <View
+              key={`${row.lineNo}-${row.text}`}
+              style={[
+                codeStyles.row,
+                rowBackgroundColor ? { backgroundColor: rowBackgroundColor } : undefined,
+              ]}
+            >
+              <View style={[codeStyles.lineNoCol, { backgroundColor: lineNoBg }]}>
+                <Text style={[editStyles.lineNo, { color: lineNoColor }]}>
+                  {row.lineNo}
+                </Text>
+              </View>
+              <TokenizedText
+                line={row.text}
+                isDark={isDark}
+                style={editStyles.lineText}
+              />
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    </ScrollView>
   );
 }
 
@@ -572,25 +658,390 @@ function SplitDiffView({
   );
 }
 
+function ReadToolCall({ tc }: { tc: ToolCallInfo }) {
+  const colorScheme = useColorScheme() ?? "light";
+  const isDark = colorScheme === "dark";
+  const isRunning = isToolCallActive(tc);
+  const statusLabel = getToolStatusLabel(tc);
+  const [expanded, setExpanded] = useState(isRunning);
+
+  useEffect(() => {
+    if (isRunning) {
+      setExpanded(true);
+    }
+  }, [isRunning]);
+
+  const parsed = parseToolArguments(tc.arguments);
+  const path = parsed.path ?? "";
+  const fileName = basename(path);
+  const output = tc.result ?? tc.partialResult ?? "";
+  const parsedOutput = useMemo(() => parseReadOutput(output), [output]);
+  const startLine = (parsed.offset ?? 0) + 1;
+  const rows = useMemo(
+    () => buildCodeRows(parsedOutput.body, startLine),
+    [parsedOutput.body, startLine],
+  );
+
+  const textColor = isDark ? "#CCCCCC" : "#1A1A1A";
+  const mutedColor = isDark ? "#888" : "#888";
+  const boxBg = isDark ? "#0D0D0D" : "#FAFAFA";
+  const boxBorder = isDark ? "#2A2A2A" : "#E8E8E8";
+  const toolbarBg = isDark ? "#161616" : "#F3F3F3";
+  const toolbarBorder = isDark ? "#2A2A2A" : "#E0E0E0";
+  const lineNoBg = isDark ? "#111111" : "#F3F3F3";
+  const lineNoColor = isDark ? "#444" : "#BBBBBB";
+
+  const lineRange =
+    rows.length > 0
+      ? `${rows[0]?.lineNo}-${rows[rows.length - 1]?.lineNo}`
+      : null;
+
+  return (
+    <View>
+      <Pressable style={styles.row} onPress={() => setExpanded((v) => !v)}>
+        <Text style={styles.singleLine} numberOfLines={1}>
+          <Text style={[styles.verb, { color: textColor }]}>Read</Text>
+          <Text style={[styles.detail, { color: mutedColor }]}> {fileName}</Text>
+          {lineRange ? (
+            <Text style={[styles.status, { color: mutedColor }]}> lines {lineRange}</Text>
+          ) : null}
+          {statusLabel ? (
+            <Text style={[styles.status, { color: mutedColor }]}> {statusLabel}</Text>
+          ) : null}
+        </Text>
+        {expanded
+          ? <ChevronDown size={13} color={mutedColor} strokeWidth={1.8} />
+          : <ChevronRight size={13} color={mutedColor} strokeWidth={1.8} />
+        }
+      </Pressable>
+
+      {expanded && (rows.length > 0 || isRunning || !!output) && (
+        <View style={[editStyles.box, { backgroundColor: boxBg, borderColor: boxBorder }]}>
+          <View
+            style={[
+              editStyles.toolbar,
+              { backgroundColor: toolbarBg, borderBottomColor: toolbarBorder },
+            ]}
+          >
+            <Text
+              style={[editStyles.toolbarPath, { color: mutedColor }]}
+              numberOfLines={1}
+            >
+              {path}
+            </Text>
+            <View style={toolMetaStyles.row}>
+              {parsed.limit != null ? (
+                <Text style={[toolMetaStyles.text, { color: mutedColor }]}>
+                  {parsed.limit} lines
+                </Text>
+              ) : null}
+              {lineRange ? (
+                <Text style={[toolMetaStyles.text, { color: mutedColor }]}>
+                  {lineRange}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+
+          {rows.length > 0 ? (
+            <CodePreview
+              rows={rows}
+              isDark={isDark}
+              lineNoBg={lineNoBg}
+              lineNoColor={lineNoColor}
+            />
+          ) : (
+            <View style={editStyles.pendingState}>
+              <Text style={[editStyles.pendingText, { color: mutedColor }]}>
+                {tc.isError
+                  ? output
+                  : statusLabel ?? "Waiting for file contents..."}
+              </Text>
+            </View>
+          )}
+
+          {parsedOutput.remainingLines != null && parsedOutput.nextOffset != null ? (
+            <View style={toolMetaStyles.footer}>
+              <Text style={[toolMetaStyles.text, { color: mutedColor }]}>
+                {parsedOutput.remainingLines} more lines available at offset {parsedOutput.nextOffset}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      )}
+    </View>
+  );
+}
+
+type WriteBaselineState =
+  | { kind: "content"; content: string }
+  | { kind: "missing" };
+
+function WriteToolCall({ tc }: { tc: ToolCallInfo }) {
+  const colorScheme = useColorScheme() ?? "light";
+  const isDark = colorScheme === "dark";
+  const isRunning = isToolCallActive(tc);
+  const statusLabel = getToolStatusLabel(tc);
+  const [expanded, setExpanded] = useState(isRunning);
+  const diffViewMode = useAppSettingsStore((s) => s.diffViewMode);
+  const updateSettings = useAppSettingsStore((s) => s.update);
+  const viewMode = diffViewMode;
+  const setViewMode = (mode: DiffViewMode) => updateSettings({ diffViewMode: mode });
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [baseline, setBaseline] = useState<WriteBaselineState | null>(null);
+
+  useEffect(() => {
+    if (isRunning) {
+      setExpanded(true);
+    }
+  }, [isRunning]);
+
+  const parsed = parseToolArguments(tc.arguments);
+  const path = parsed.path ?? "";
+  const newText = parsed.content ?? "";
+  const fileName = basename(path);
+  const canCaptureBaseline = isResolvableFilePath(path);
+  const shouldCaptureBaseline =
+    isRunning && canCaptureBaseline && baseline === null;
+  const baselineQuery = useFileRead(shouldCaptureBaseline ? path : null);
+
+  useEffect(() => {
+    if (baseline !== null) {
+      return;
+    }
+    if (baselineQuery.data?.content != null) {
+      setBaseline({ kind: "content", content: baselineQuery.data.content });
+      return;
+    }
+    if (baselineQuery.isError) {
+      setBaseline({ kind: "missing" });
+    }
+  }, [baseline, baselineQuery.data?.content, baselineQuery.isError]);
+
+  const oldText = baseline?.kind === "content" ? baseline.content : "";
+  const previewRows = useMemo(() => buildCodeRows(newText, 1), [newText]);
+  const ops = useMemo(() => {
+    if (!expanded || (!oldText && !newText)) return [];
+    return lcsLineDiff(oldText, newText);
+  }, [expanded, oldText, newText]);
+
+  const sideBySideRows = useMemo(() => {
+    if (!expanded || viewMode !== "split") return [];
+    return buildSideBySide(ops);
+  }, [expanded, viewMode, ops]);
+
+  const inlineRows = useMemo(() => {
+    if (!expanded || viewMode !== "inline") return [];
+    return buildInline(ops);
+  }, [expanded, viewMode, ops]);
+
+  const textColor = isDark ? "#CCCCCC" : "#1A1A1A";
+  const mutedColor = isDark ? "#888" : "#888";
+  const addColor = isDark ? "#3FB950" : "#1A7F37";
+  const boxBg = isDark ? "#0D0D0D" : "#FAFAFA";
+  const boxBorder = isDark ? "#2A2A2A" : "#E8E8E8";
+  const lineNoBg = isDark ? "#111111" : "#F3F3F3";
+  const lineNoColor = isDark ? "#444" : "#BBBBBB";
+  const dividerColor = isDark ? "#2A2A2A" : "#E0E0E0";
+  const emptyBg = isDark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)";
+  const toolbarBg = isDark ? "#161616" : "#F3F3F3";
+  const toolbarBorder = isDark ? "#2A2A2A" : "#E0E0E0";
+  const activeBtnBg = isDark ? "#2A2A2A" : "#FFFFFF";
+  const addBg = isDark ? "rgba(63, 185, 80, 0.10)" : "rgba(26, 127, 55, 0.06)";
+  const removeBg = isDark ? "rgba(248, 81, 73, 0.10)" : "rgba(207, 34, 46, 0.06)";
+  const hasData = ops.length > 0;
+  const canShowDiff = baseline !== null;
+
+  const baselineLabel = (() => {
+    if (!newText && isRunning) {
+      return statusLabel ?? "Preparing file contents...";
+    }
+    if (baselineQuery.isLoading) {
+      return "Loading current file for diff...";
+    }
+    if (baseline?.kind === "content") {
+      return "Diffing against current file";
+    }
+    if (baseline?.kind === "missing") {
+      return "Treating this as a new file";
+    }
+    if (!canCaptureBaseline && isRunning) {
+      return "Showing incoming file contents";
+    }
+    if (!isRunning) {
+      return "Previous file state unavailable; showing written contents";
+    }
+    return null;
+  })();
+
+  return (
+    <View>
+      <Pressable style={styles.row} onPress={() => setExpanded((v) => !v)}>
+        <Text style={styles.singleLine} numberOfLines={1}>
+          <Text style={[styles.verb, { color: textColor }]}>Write</Text>
+          <Text style={[styles.detail, { color: mutedColor }]}> {fileName}</Text>
+          {newText ? (
+            <Text style={[styles.diff, { color: addColor }]}>
+              {" "}
+              +{countLines(newText)}
+            </Text>
+          ) : null}
+          {statusLabel ? (
+            <Text style={[styles.status, { color: mutedColor }]}> {statusLabel}</Text>
+          ) : null}
+        </Text>
+        {expanded
+          ? <ChevronDown size={13} color={mutedColor} strokeWidth={1.8} />
+          : <ChevronRight size={13} color={mutedColor} strokeWidth={1.8} />
+        }
+      </Pressable>
+
+      {expanded && (hasData || isRunning || !!newText) && (
+        <View
+          style={[editStyles.box, { backgroundColor: boxBg, borderColor: boxBorder }]}
+          onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
+        >
+          <View
+            style={[
+              editStyles.toolbar,
+              { backgroundColor: toolbarBg, borderBottomColor: toolbarBorder },
+            ]}
+          >
+            <Text
+              style={[editStyles.toolbarPath, { color: mutedColor }]}
+              numberOfLines={1}
+            >
+              {path}
+            </Text>
+            <View style={editStyles.viewToggle}>
+              <Pressable
+                onPress={() => setViewMode("inline")}
+                style={[
+                  editStyles.viewToggleBtn,
+                  viewMode === "inline" && { backgroundColor: activeBtnBg },
+                ]}
+              >
+                <Rows2
+                  size={12}
+                  color={viewMode === "inline" ? textColor : mutedColor}
+                  strokeWidth={1.8}
+                />
+              </Pressable>
+              <Pressable
+                onPress={() => setViewMode("split")}
+                style={[
+                  editStyles.viewToggleBtn,
+                  viewMode === "split" && { backgroundColor: activeBtnBg },
+                ]}
+              >
+                <Columns2
+                  size={12}
+                  color={viewMode === "split" ? textColor : mutedColor}
+                  strokeWidth={1.8}
+                />
+              </Pressable>
+            </View>
+          </View>
+
+          {baselineLabel ? (
+            <View style={toolMetaStyles.banner}>
+              <Text style={[toolMetaStyles.text, { color: mutedColor }]}>
+                {baselineLabel}
+              </Text>
+            </View>
+          ) : null}
+
+          {canShowDiff && hasData ? (
+            <ScrollView style={editStyles.scrollV} nestedScrollEnabled>
+              {viewMode === "split" ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <SplitDiffView
+                    rows={sideBySideRows}
+                    containerWidth={containerWidth}
+                    isDark={isDark}
+                    removeBg={removeBg}
+                    addBg={addBg}
+                    emptyBg={emptyBg}
+                    lineNoBg={lineNoBg}
+                    lineNoColor={lineNoColor}
+                    dividerColor={dividerColor}
+                  />
+                </ScrollView>
+              ) : (
+                <View>
+                  {inlineRows.map((row, i) => {
+                    const rowBg =
+                      row.type === "added" ? addBg :
+                      row.type === "removed" ? removeBg : undefined;
+                    const prefix =
+                      row.type === "added" ? "+" : row.type === "removed" ? "-" : " ";
+                    const prefixColor =
+                      row.type === "added" ? addColor :
+                      isDark ? "#F85149" : "#CF222E";
+
+                    return (
+                      <View key={i} style={[editStyles.inlineRow, rowBg ? { backgroundColor: rowBg } : undefined]}>
+                        <View style={[editStyles.lineNoCol, { backgroundColor: lineNoBg }]}>
+                          <Text style={[editStyles.lineNo, { color: lineNoColor }]}>
+                            {row.oldLineNo ?? ""}
+                          </Text>
+                        </View>
+                        <View style={[editStyles.lineNoCol, { backgroundColor: lineNoBg }]}>
+                          <Text style={[editStyles.lineNo, { color: lineNoColor }]}>
+                            {row.newLineNo ?? ""}
+                          </Text>
+                        </View>
+                        <Text style={[editStyles.prefix, { color: prefixColor }]}>{prefix}</Text>
+                        <TokenizedText line={row.text} isDark={isDark} style={editStyles.lineText} />
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </ScrollView>
+          ) : previewRows.length > 0 ? (
+            <CodePreview
+              rows={previewRows}
+              isDark={isDark}
+              lineNoBg={lineNoBg}
+              lineNoColor={lineNoColor}
+              rowBackgroundColor={addBg}
+            />
+          ) : (
+            <View style={editStyles.pendingState}>
+              <Text style={[editStyles.pendingText, { color: mutedColor }]}>
+                {baselineLabel ?? "Preparing diff..."}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
 function EditToolCall({ tc }: { tc: ToolCallInfo }) {
   const colorScheme = useColorScheme() ?? "light";
   const isDark = colorScheme === "dark";
-  const [expanded, setExpanded] = useState(false);
+  const isRunning = isToolCallActive(tc);
+  const statusLabel = getToolStatusLabel(tc);
+  const [expanded, setExpanded] = useState(isRunning);
   const diffViewMode = useAppSettingsStore((s) => s.diffViewMode);
   const updateSettings = useAppSettingsStore((s) => s.update);
   const viewMode = diffViewMode;
   const setViewMode = (mode: DiffViewMode) => updateSettings({ diffViewMode: mode });
   const [containerWidth, setContainerWidth] = useState(0);
 
-  let path = "";
-  let oldText = "";
-  let newText = "";
-  try {
-    const parsed = JSON.parse(tc.arguments);
-    path = parsed.path ?? "";
-    oldText = parsed.oldText ?? "";
-    newText = parsed.newText ?? "";
-  } catch {}
+  useEffect(() => {
+    if (isRunning) {
+      setExpanded(true);
+    }
+  }, [isRunning]);
+
+  const parsed = parseToolArguments(tc.arguments);
+  const path = parsed.path ?? "";
+  const oldText = parsed.oldText ?? "";
+  const newText = parsed.newText ?? "";
 
   const fileName = basename(path);
   const addedCount = countLines(newText);
@@ -637,6 +1088,9 @@ function EditToolCall({ tc }: { tc: ToolCallInfo }) {
           <Text style={[styles.detail, { color: mutedColor }]}> {fileName}</Text>
           <Text style={[styles.diff, { color: addColor }]}> +{addedCount}</Text>
           <Text style={[styles.diff, { color: removeColor }]}> -{removedCount}</Text>
+          {statusLabel ? (
+            <Text style={[styles.status, { color: mutedColor }]}> {statusLabel}</Text>
+          ) : null}
         </Text>
         {expanded
           ? <ChevronDown size={13} color={mutedColor} strokeWidth={1.8} />
@@ -644,7 +1098,7 @@ function EditToolCall({ tc }: { tc: ToolCallInfo }) {
         }
       </Pressable>
 
-      {expanded && hasData && (
+      {expanded && (hasData || isRunning) && (
         <View
           style={[editStyles.box, { backgroundColor: boxBg, borderColor: boxBorder }]}
           onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
@@ -673,53 +1127,61 @@ function EditToolCall({ tc }: { tc: ToolCallInfo }) {
             </View>
           </View>
 
-          <ScrollView style={editStyles.scrollV} nestedScrollEnabled>
-            {viewMode === "split" ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <SplitDiffView
-                  rows={sideBySideRows}
-                  containerWidth={containerWidth}
-                  isDark={isDark}
-                  removeBg={removeBg}
-                  addBg={addBg}
-                  emptyBg={emptyBg}
-                  lineNoBg={lineNoBg}
-                  lineNoColor={lineNoColor}
-                  dividerColor={dividerColor}
-                />
-              </ScrollView>
-            ) : (
-              <View>
-                {inlineRows.map((row, i) => {
-                  const rowBg =
-                    row.type === "added" ? addBg :
-                    row.type === "removed" ? removeBg : undefined;
-                  const prefix =
-                    row.type === "added" ? "+" : row.type === "removed" ? "-" : " ";
-                  const prefixColor =
-                    row.type === "added" ? addColor :
-                    row.type === "removed" ? removeColor : mutedColor;
+          {hasData ? (
+            <ScrollView style={editStyles.scrollV} nestedScrollEnabled>
+              {viewMode === "split" ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <SplitDiffView
+                    rows={sideBySideRows}
+                    containerWidth={containerWidth}
+                    isDark={isDark}
+                    removeBg={removeBg}
+                    addBg={addBg}
+                    emptyBg={emptyBg}
+                    lineNoBg={lineNoBg}
+                    lineNoColor={lineNoColor}
+                    dividerColor={dividerColor}
+                  />
+                </ScrollView>
+              ) : (
+                <View>
+                  {inlineRows.map((row, i) => {
+                    const rowBg =
+                      row.type === "added" ? addBg :
+                      row.type === "removed" ? removeBg : undefined;
+                    const prefix =
+                      row.type === "added" ? "+" : row.type === "removed" ? "-" : " ";
+                    const prefixColor =
+                      row.type === "added" ? addColor :
+                      row.type === "removed" ? removeColor : mutedColor;
 
-                  return (
-                    <View key={i} style={[editStyles.inlineRow, rowBg ? { backgroundColor: rowBg } : undefined]}>
-                      <View style={[editStyles.lineNoCol, { backgroundColor: lineNoBg }]}>
-                        <Text style={[editStyles.lineNo, { color: lineNoColor }]}>
-                          {row.oldLineNo ?? ""}
-                        </Text>
+                    return (
+                      <View key={i} style={[editStyles.inlineRow, rowBg ? { backgroundColor: rowBg } : undefined]}>
+                        <View style={[editStyles.lineNoCol, { backgroundColor: lineNoBg }]}>
+                          <Text style={[editStyles.lineNo, { color: lineNoColor }]}>
+                            {row.oldLineNo ?? ""}
+                          </Text>
+                        </View>
+                        <View style={[editStyles.lineNoCol, { backgroundColor: lineNoBg }]}>
+                          <Text style={[editStyles.lineNo, { color: lineNoColor }]}>
+                            {row.newLineNo ?? ""}
+                          </Text>
+                        </View>
+                        <Text style={[editStyles.prefix, { color: prefixColor }]}>{prefix}</Text>
+                        <TokenizedText line={row.text} isDark={isDark} style={editStyles.lineText} />
                       </View>
-                      <View style={[editStyles.lineNoCol, { backgroundColor: lineNoBg }]}>
-                        <Text style={[editStyles.lineNo, { color: lineNoColor }]}>
-                          {row.newLineNo ?? ""}
-                        </Text>
-                      </View>
-                      <Text style={[editStyles.prefix, { color: prefixColor }]}>{prefix}</Text>
-                      <TokenizedText line={row.text} isDark={isDark} style={editStyles.lineText} />
-                    </View>
-                  );
-                })}
-              </View>
-            )}
-          </ScrollView>
+                    );
+                  })}
+                </View>
+              )}
+            </ScrollView>
+          ) : (
+            <View style={editStyles.pendingState}>
+              <Text style={[editStyles.pendingText, { color: mutedColor }]}>
+                {statusLabel ?? "Preparing diff..."}
+              </Text>
+            </View>
+          )}
         </View>
       )}
     </View>
@@ -762,6 +1224,14 @@ const editStyles = StyleSheet.create({
   },
   scrollV: {
     maxHeight: 400,
+  },
+  pendingState: {
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+  },
+  pendingText: {
+    fontSize: 12,
+    fontFamily: Fonts.sans,
   },
   table: {
     minWidth: "100%",
@@ -810,33 +1280,79 @@ const editStyles = StyleSheet.create({
   },
 });
 
-function SingleToolCall({ tc }: { tc: ToolCallInfo }) {
-  if (tc.name === "bash") {
-    return <BashToolCall tc={tc} />;
-  }
-  if (tc.name === "edit") {
-    return <EditToolCall tc={tc} />;
-  }
+const codeStyles = StyleSheet.create({
+  table: {
+    minWidth: "100%",
+  },
+  row: {
+    flexDirection: "row",
+    minHeight: 22,
+  },
+  lineNoCol: {
+    width: 56,
+    paddingHorizontal: 6,
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
+});
 
+const toolMetaStyles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  banner: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "rgba(127,127,127,0.2)",
+  },
+  footer: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderTopWidth: 0.5,
+    borderTopColor: "rgba(127,127,127,0.2)",
+  },
+  text: {
+    fontSize: 11,
+    fontFamily: Fonts.sans,
+  },
+});
+
+function SingleToolCall({ tc }: { tc: ToolCallInfo }) {
   const colorScheme = useColorScheme() ?? "light";
   const colors = Colors[colorScheme];
   const isDark = colorScheme === "dark";
   const [expanded, setExpanded] = useState(false);
 
+  if (tc.name === "bash") {
+    return <BashToolCall tc={tc} />;
+  }
+  if (tc.name === "read") {
+    return <ReadToolCall tc={tc} />;
+  }
+  if (tc.name === "write") {
+    return <WriteToolCall tc={tc} />;
+  }
+  if (tc.name === "edit") {
+    return <EditToolCall tc={tc} />;
+  }
+
   const { verb, detail, diffAdded, diffRemoved } = formatSingleCall(tc);
   const output = tc.result ?? tc.partialResult;
+  const statusLabel = getToolStatusLabel(tc);
   const textColor = isDark ? "#CCCCCC" : "#1A1A1A";
   const mutedColor = isDark ? "#888" : "#888";
   const addColor = isDark ? "#3FB950" : "#1A7F37";
   const removeColor = isDark ? "#F85149" : "#CF222E";
 
-  const toggle = useCallback(() => {
-    if (output) setExpanded((v) => !v);
-  }, [output]);
-
   return (
     <View>
-      <Pressable style={styles.row} onPress={toggle}>
+      <Pressable
+        style={styles.row}
+        onPress={() => output && setExpanded((v) => !v)}
+      >
         <Text style={styles.singleLine} numberOfLines={1}>
           <Text style={[styles.verb, { color: textColor }]}>{verb}</Text>
           {detail ? (
@@ -847,6 +1363,9 @@ function SingleToolCall({ tc }: { tc: ToolCallInfo }) {
               <Text style={[styles.diff, { color: addColor }]}> +{diffAdded}</Text>
               <Text style={[styles.diff, { color: removeColor }]}> -{diffRemoved}</Text>
             </>
+          ) : null}
+          {statusLabel ? (
+            <Text style={[styles.status, { color: mutedColor }]}> {statusLabel}</Text>
           ) : null}
         </Text>
       </Pressable>
@@ -876,7 +1395,7 @@ function SingleToolCall({ tc }: { tc: ToolCallInfo }) {
   );
 }
 
-export function ToolCallGroup({
+function ToolCallGroupComponent({
   toolName,
   calls,
 }: {
@@ -887,13 +1406,23 @@ export function ToolCallGroup({
   const isDark = colorScheme === "dark";
   const [expanded, setExpanded] = useState(false);
   const textColor = isDark ? "#CCCCCC" : "#1A1A1A";
+  const activeCall = calls.find((call) => isToolCallActive(call));
+  const groupStatusLabel = activeCall
+    ? getToolStatusLabel(activeCall)
+    : null;
+
+  useEffect(() => {
+    if (groupStatusLabel) {
+      setExpanded(true);
+    }
+  }, [groupStatusLabel]);
+
+  const toggle = useCallback(() => setExpanded((v) => !v), []);
+  const groupParts = multiGroupLabelParts(toolName, calls.length);
 
   if (calls.length === 1) {
     return <SingleToolCall tc={calls[0]} />;
   }
-
-  const toggle = useCallback(() => setExpanded((v) => !v), []);
-  const groupParts = multiGroupLabelParts(toolName, calls.length);
 
   return (
     <View>
@@ -909,6 +1438,12 @@ export function ToolCallGroup({
           {groupParts.after ? (
             <Text style={[styles.label, { color: textColor }]}>{groupParts.after}</Text>
           ) : null}
+          {groupStatusLabel ? (
+            <Text style={[styles.status, { color: isDark ? "#888" : "#888" }]}>
+              {" "}
+              {groupStatusLabel}
+            </Text>
+          ) : null}
         </View>
       </Pressable>
 
@@ -923,13 +1458,20 @@ export function ToolCallGroup({
   );
 }
 
+export const ToolCallGroup = memo(
+  ToolCallGroupComponent,
+  (prev, next) =>
+    prev.toolName === next.toolName &&
+    areToolCallArraysEqual(prev.calls, next.calls),
+);
+
 export interface ToolCallRenderItem {
   key: string;
   toolName: string;
   calls: ToolCallInfo[];
 }
 
-const NEVER_GROUP = new Set(["bash"]);
+const NEVER_GROUP = new Set(["bash", "read", "write", "edit"]);
 
 export function groupToolCalls(
   toolCalls: ToolCallInfo[],
@@ -997,6 +1539,10 @@ const styles = StyleSheet.create({
   diff: {
     fontFamily: Fonts.sansMedium,
     fontWeight: "500",
+    fontSize: 12,
+  },
+  status: {
+    fontFamily: Fonts.sans,
     fontSize: 12,
   },
   expandedList: {

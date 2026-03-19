@@ -28,6 +28,7 @@ import {
   type ModelInfo,
 } from '@/features/agent/hooks/use-agent-config';
 import type { AgentMode } from '@/features/agent/mode';
+import { useAppMode } from '@/hooks/use-app-mode';
 
 interface ToolbarProps {
   sessionId?: string | null;
@@ -53,6 +54,7 @@ export function Toolbar({
   ready = true,
 }: ToolbarProps) {
   const theme = usePromptTheme();
+  const appMode = useAppMode();
   const modelScrollRef = useRef<ScrollView>(null);
   const modelSearchRef = useRef<TextInput>(null);
 
@@ -406,7 +408,7 @@ export function Toolbar({
         </View>
 
         <View style={styles.spacer} />
-        <View
+        {appMode === 'code' && <View
           style={[
             styles.modeToggle,
             {
@@ -462,7 +464,7 @@ export function Toolbar({
               </Pressable>
             );
           })}
-        </View>
+        </View>}
       </View>
     </View>
   );

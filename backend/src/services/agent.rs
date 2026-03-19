@@ -69,6 +69,7 @@ struct AgentSession {
     process: Option<PiProcess>,
     last_activity: Arc<Mutex<Instant>>,
     resume_lock: Arc<Mutex<()>>,
+    extra_args: Vec<String>,
 }
 
 struct SessionSnapshot {
@@ -109,7 +110,30 @@ impl AgentManager {
         cwd: String,
         session_path: Option<String>,
     ) -> Result<AgentSessionInfo, String> {
-        self.spawn_and_register(workspace_id, cwd, session_path, None, None)
+        self.spawn_and_register(workspace_id, cwd, session_path, None, None, vec![])
+            .await
+    }
+
+    pub async fn create_chat_session(
+        &self,
+        workspace_id: String,
+        cwd: String,
+        system_prompt: Option<String>,
+        no_tools: bool,
+    ) -> Result<AgentSessionInfo, String> {
+        std::fs::create_dir_all(&cwd)
+            .map_err(|e| format!("Failed to create chat dir: {e}"))?;
+
+        let mut extra_args = Vec::new();
+        if no_tools {
+            extra_args.push("--no-tools".to_string());
+        }
+        if let Some(prompt) = system_prompt {
+            extra_args.push("--append-system-prompt".to_string());
+            extra_args.push(prompt);
+        }
+
+        self.spawn_and_register(workspace_id, cwd, None, None, None, extra_args)
             .await
     }
 
@@ -123,6 +147,7 @@ impl AgentManager {
         let resolved_id = self.resolve_session_id(session_id).await;
         let mut previous_key = None;
         let mut resume_lock = None;
+        let mut extra_args = vec![];
         let (workspace_id, cwd, session_file) = {
             let sessions = self.sessions.read().await;
             if let Some(session) = sessions.get(&resolved_id) {
@@ -132,6 +157,7 @@ impl AgentManager {
                 }
                 previous_key = Some(resolved_id.clone());
                 resume_lock = Some(session.resume_lock.clone());
+                extra_args = session.extra_args.clone();
                 (
                     session.workspace_id.clone(),
                     session.cwd.clone(),
@@ -150,8 +176,6 @@ impl AgentManager {
         };
 
         if previous_key.is_some() {
-            // Re-resolve after acquiring the lock — another caller may have
-            // already respawned and re-keyed the session under a new ID.
             let re_resolved = self.resolve_session_id(session_id).await;
             let sessions = self.sessions.read().await;
             if let Some(session) = sessions.get(&re_resolved) {
@@ -160,7 +184,6 @@ impl AgentManager {
                     return Ok(Self::build_session_info(session));
                 }
             }
-            // Update previous_key so spawn_and_register removes the right entry.
             previous_key = Some(re_resolved);
         }
 
@@ -170,6 +193,7 @@ impl AgentManager {
             Some(session_file),
             previous_key,
             resume_lock_for_spawn,
+            extra_args,
         )
         .await
     }
@@ -369,7 +393,7 @@ impl AgentManager {
 
         let _resume_guard = resume_lock.lock().await;
 
-        let (workspace_id, cwd, session_file, resume_lock) = {
+        let (workspace_id, cwd, session_file, resume_lock, extra_args) = {
             let sessions = self.sessions.read().await;
             let session = sessions
                 .get(&resolved_id)
@@ -387,6 +411,7 @@ impl AgentManager {
                 session.cwd.clone(),
                 session.session_file.clone(),
                 session.resume_lock.clone(),
+                session.extra_args.clone(),
             )
         };
 
@@ -397,6 +422,7 @@ impl AgentManager {
             Some(session_file),
             Some(resolved_id.clone()),
             Some(resume_lock),
+            extra_args,
         )
         .await?;
 
@@ -424,6 +450,7 @@ impl AgentManager {
         session_path: Option<String>,
         previous_key: Option<String>,
         resume_lock: Option<Arc<Mutex<()>>>,
+        extra_args: Vec<String>,
     ) -> Result<AgentSessionInfo, String> {
         let pi_bin = self.pi_binary.as_str();
         let cwd = if cwd.starts_with("~/") {
@@ -441,6 +468,10 @@ impl AgentManager {
         let mut cmd = tokio::process::Command::new(pi_bin);
         cmd.env("PI_OFFLINE", "1");
         cmd.arg("--mode").arg("rpc");
+
+        for arg in &extra_args {
+            cmd.arg(arg);
+        }
 
         if let Some(ref path) = session_path {
             cmd.arg("--session").arg(path);
@@ -605,6 +636,7 @@ impl AgentManager {
             process: Some(process),
             last_activity: Arc::new(Mutex::new(Instant::now())),
             resume_lock: resume_lock.unwrap_or_else(|| Arc::new(Mutex::new(()))),
+            extra_args,
         };
         {
             let mut sessions = self.sessions.write().await;

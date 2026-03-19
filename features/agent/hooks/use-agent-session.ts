@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   createSession,
+  sessionsGet,
   touchSession,
   prompt as apiPrompt,
   steer as apiSteer,
@@ -25,6 +26,7 @@ export function useAgentSession(
   sessionFile?: string | null,
 ) {
   const setHistoryMessages = useAgentStore((s) => s.setHistoryMessages);
+  const setHistoryEntries = useAgentStore((s) => s.setHistoryEntries);
   const setPendingExtensionUiRequest = useAgentStore(
     (s) => s.setPendingExtensionUiRequest,
   );
@@ -51,13 +53,25 @@ export function useAgentSession(
     setPendingExtensionUiRequest(sessionId, null);
 
     (async () => {
-      const msgs = await apiGetMessages({
-        body: { session_id: sessionId },
+      const detail = await sessionsGet({
+        path: { id: workspaceId, session_id: sessionId },
       });
-      if (!msgs.error) {
-        const data = unwrapApiData(msgs.data) as Record<string, any> | undefined;
-        if (data?.messages) {
-          setHistoryMessages(sessionId, data.messages);
+      if (!detail.error) {
+        const data = unwrapApiData(detail.data) as
+          | { entries?: unknown[] }
+          | undefined;
+        if (data?.entries) {
+          setHistoryEntries(sessionId, data.entries);
+        }
+      } else {
+        const msgs = await apiGetMessages({
+          body: { session_id: sessionId },
+        });
+        if (!msgs.error) {
+          const data = unwrapApiData(msgs.data) as Record<string, any> | undefined;
+          if (data?.messages) {
+            setHistoryMessages(sessionId, data.messages);
+          }
         }
       }
 
@@ -91,6 +105,7 @@ export function useAgentSession(
     workspaceId,
     sessionFile,
     registerSessionWorkspace,
+    setHistoryEntries,
     setHistoryMessages,
     setPendingExtensionUiRequest,
   ]);
