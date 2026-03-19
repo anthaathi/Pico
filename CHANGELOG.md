@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.5](https://github.com/anthaathi/pi-companion/compare/v1.0.4...v1.0.5) (2026-03-19)
+
+
+### Bug Fixes
+
+* skip lintVital tasks in Android APK builds ([6635cef](https://github.com/anthaathi/pi-companion/commit/6635cef543e10ce84bbd4f669a79f22f48e19788))
+
 ## [1.0.4](https://github.com/anthaathi/pi-companion/compare/v1.0.3...v1.0.4) (2026-03-19)
 
 
