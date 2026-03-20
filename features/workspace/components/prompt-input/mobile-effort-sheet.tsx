@@ -5,10 +5,7 @@ import { Check } from 'lucide-react-native';
 import { Fonts } from '@/constants/theme';
 import { THINKING_LEVELS, ThinkingLevel } from './constants';
 import { usePromptTheme } from './use-theme-colors';
-import {
-  useAgentState,
-  useSetThinkingLevel,
-} from '@/features/agent/hooks/use-agent-config';
+import { useAgentConfig } from '@pi-ui/client';
 
 interface MobileEffortSheetProps {
   visible: boolean;
@@ -25,9 +22,8 @@ function MobileEffortSheetComponent({
   const slideAnim = useRef(new Animated.Value(300)).current;
   const overlayAnim = useRef(new Animated.Value(0)).current;
 
-  const { data: agentState } = useAgentState(sessionId);
-  const setThinkingMutation = useSetThinkingLevel(sessionId);
-  const currentThinking = agentState?.thinkingLevel ?? 'medium';
+  const config = useAgentConfig(sessionId ?? null);
+  const currentThinking = config.state?.thinkingLevel ?? 'medium';
 
   useEffect(() => {
     if (visible) {
@@ -50,7 +46,7 @@ function MobileEffortSheetComponent({
   };
 
   const handleSelect = (level: ThinkingLevel) => {
-    setThinkingMutation.mutate(level);
+    config.setThinkingLevel(level);
     animateClose(() => onClose());
   };
 

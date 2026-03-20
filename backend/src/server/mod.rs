@@ -18,6 +18,7 @@ use crate::config::AppConfig;
 use crate::db::Database;
 use crate::routes;
 use crate::services::agent::AgentManager;
+use crate::services::provider::PiAgentProvider;
 use crate::services::connection::ConnectionInfo;
 use crate::services::pairing::PairingManager;
 use crate::services::runtime;
@@ -28,7 +29,7 @@ use self::state::AppState;
 
 const QR_ROTATE_MINUTES: u64 = 5;
 
-pub async fn serve(cli: Cli) -> anyhow::Result<()> {
+pub async fn serve(cli: Cli, force_qr: bool) -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -65,25 +66,30 @@ pub async fn serve(cli: Cli) -> anyhow::Result<()> {
 
     let server_id = config.server_id().to_string();
 
-    if !has_active_sessions {
+    if !has_active_sessions || force_qr {
         conn_info.print_qr(&pairing.current_qr_id(), &server_id);
     }
 
     let pi_binary = config.pi_binary();
     tracing::info!("Using pi binary: {pi_binary}");
-    let agent = AgentManager::new(pi_binary);
+    let pi_provider = Arc::new(PiAgentProvider::new(pi_binary));
+    let agent = AgentManager::new(pi_provider);
     agent.start_idle_cleanup_task();
+
+    let instance_id = Arc::new(uuid::Uuid::new_v4().to_string());
+    tracing::info!("Server instance ID: {instance_id}");
 
     let state = AppState {
         config: Arc::new(config.clone()),
         db: Arc::new(db),
         pairing: pairing.clone(),
         agent,
+        instance_id,
     };
 
     let app = build_app(state);
 
-    if !has_active_sessions {
+    if !has_active_sessions || force_qr {
         spawn_qr_rotation_task(pairing.clone(), Arc::clone(&conn_info), server_id);
         spawn_pairing_approval_task(pairing);
     }

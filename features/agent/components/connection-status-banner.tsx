@@ -11,15 +11,13 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Fonts } from "@/constants/theme";
-import { useAgentStore } from "../store";
+import { useConnection } from "@pi-ui/client";
 
 export function ConnectionStatusBanner() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const connection = useAgentStore((s) => s.connection);
-  const alertMessage = useAgentStore((s) => s.alertMessage);
-  const requestReconnect = useAgentStore((s) => s.requestReconnect);
-  const setAlertMessage = useAgentStore((s) => s.setAlertMessage);
+  const { reconnect, ...connection } = useConnection();
+  const alertMessage: string | null = null;
   const hasConnectionIssue =
     connection.status === "reconnecting" ||
     connection.status === "disconnected";
@@ -71,11 +69,10 @@ export function ConnectionStatusBanner() {
 
   const handleTap = useCallback(() => {
     if (hasConnectionIssue) {
-      requestReconnect();
+      reconnect();
       return;
     }
-    setAlertMessage(null);
-  }, [hasConnectionIssue, requestReconnect, setAlertMessage]);
+  }, [hasConnectionIssue, reconnect]);
 
   if (!mounted) return null;
 

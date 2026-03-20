@@ -18,7 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Fonts } from "@/constants/theme";
 import { formatAgentModeLabel } from "@/features/agent/mode";
-import { useAgentStore } from "@/features/agent/store";
+import { useAgentSession } from "@pi-ui/client";
 import { useResponsiveLayout } from "@/features/navigation/hooks/use-responsive-layout";
 import { useSpeechRecognition } from "@/features/speech/hooks/use-speech-recognition";
 import { useSpeechSettingsStore } from "@/features/speech/store";
@@ -220,9 +220,7 @@ export function PromptInput({
     allowTypingWhileDisabled && isStartingSession;
   const inputDisabled = !!disabled && !canComposeWhileDisabled;
   const sendDisabled = !!disabled;
-  const streamedMode = useAgentStore(
-    (s) => (sessionId ? s.modes[sessionId] ?? null : null),
-  );
+  const { mode: streamedMode } = useAgentSession(sessionId ?? null);
 
   const { data: backendCommands } = useQuery({
     queryKey: ["slash-commands", sessionId],
@@ -295,13 +293,6 @@ export function PromptInput({
       hideSub.remove();
     };
   }, []);
-
-  useEffect(() => {
-    if (isWideScreen) return;
-    if (keyboardVisible) {
-      setMobileSheet(null);
-    }
-  }, [isWideScreen, keyboardVisible]);
 
   // Load speech settings
   const speechLoaded = useSpeechSettingsStore((s) => s.loaded);

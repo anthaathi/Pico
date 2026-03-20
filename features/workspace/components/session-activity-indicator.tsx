@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import { Minus } from "lucide-react-native";
 
-import { useAgentStore } from "@/features/agent/store";
+import { useAgentSession } from "@pi-ui/client";
 
 const DOT_COUNT = 3;
 const DOT_SIZE = 4;
@@ -16,7 +16,7 @@ export function SessionActivityIndicator({
   sessionId,
   color,
 }: SessionActivityIndicatorProps) {
-  const isWorking = useAgentStore((s) => s.streaming[sessionId] ?? false);
+  const { isStreaming: isWorking } = useAgentSession(sessionId);
   const dotAnims = useRef(
     Array.from({ length: DOT_COUNT }, () => new Animated.Value(0.35)),
   ).current;

@@ -1,0 +1,63 @@
+import type { StopReason } from "./stream-events";
+
+export interface ToolCallInfo {
+  id: string;
+  name: string;
+  arguments: string;
+  status: "streaming" | "pending" | "running" | "complete" | "error";
+  result?: string;
+  isError?: boolean;
+  partialResult?: string;
+}
+
+export interface MessageUsageInfo {
+  input?: number;
+  output?: number;
+  cacheRead?: number;
+  cacheWrite?: number;
+  cacheReadCost?: number;
+  cacheWriteCost?: number;
+  totalTokens?: number;
+  inputCost?: number;
+  outputCost?: number;
+  totalCost?: number;
+  currency?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant" | "system";
+  text: string;
+  errorMessage?: string;
+  thinking?: string;
+  toolCalls?: ToolCallInfo[];
+  timestamp: number;
+  isStreaming?: boolean;
+  model?: string;
+  provider?: string;
+  api?: string;
+  responseId?: string;
+  usage?: MessageUsageInfo;
+  stopReason?: StopReason;
+  systemKind?: "bashExecution" | "event";
+  command?: string;
+  exitCode?: number;
+  cancelled?: boolean;
+  truncated?: boolean;
+  fullOutputPath?: string | null;
+}
+
+export type AgentMode = "chat" | "plan";
+
+export type ExtensionUiDialogMethod = "select" | "confirm" | "input" | "editor";
+
+export interface PendingExtensionUiRequest {
+  id: string;
+  method: ExtensionUiDialogMethod;
+  title?: string;
+  message?: string;
+  options?: string[];
+  placeholder?: string;
+  prefill?: string;
+  timeout?: number;
+}

@@ -1,9 +1,6 @@
 pub mod init;
-mod qr;
 
 use clap::{Parser, Subcommand};
-
-pub use qr::print_qr;
 
 #[derive(Parser)]
 #[command(name = "pi-server", version, about = "Management server for pi-coding-agent")]
@@ -26,6 +23,10 @@ pub struct Cli {
     /// Path to SQLite database file
     #[arg(long, default_value = "pi-server.db")]
     pub db: String,
+
+    /// Print the QR code for mobile device pairing
+    #[arg(long)]
+    pub qr: bool,
 }
 
 #[derive(Subcommand)]
@@ -37,6 +38,4 @@ pub enum Commands {
         /// The password to hash
         password: String,
     },
-    /// Print the QR code for mobile device pairing
-    Qr,
 }

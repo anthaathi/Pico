@@ -122,6 +122,33 @@ fn stream_event_value<T: serde::Serialize>(event: &T) -> Value {
     serde_json::to_value(event).unwrap_or(Value::Null)
 }
 
+fn strip_live_event(mut event: Value) -> Value {
+    let event_type = event
+        .get("type")
+        .and_then(|t| t.as_str())
+        .unwrap_or_default()
+        .to_string();
+
+    if event_type != "message_start" {
+        event.as_object_mut().map(|obj| obj.remove("workspace_id"));
+    }
+
+    if event_type == "message_update" {
+        if let Some(data) = event.get_mut("data") {
+            if let Some(obj) = data.as_object_mut() {
+                obj.remove("message");
+                if let Some(ame) = obj.get_mut("assistantMessageEvent") {
+                    if let Some(ame_obj) = ame.as_object_mut() {
+                        ame_obj.remove("partial");
+                    }
+                }
+            }
+        }
+    }
+
+    event
+}
+
 fn stream_lagged_json(missed_events: u64) -> String {
     serde_json::json!({
         "type": "stream_lagged",
@@ -183,7 +210,7 @@ fn drain_ws_pending_payloads(
 
     while payloads.len() < WS_MAX_BATCH_EVENTS {
         match rx.try_recv() {
-            Ok(event) => payloads.push(stream_event_value(&event)),
+            Ok(event) => payloads.push(strip_live_event(stream_event_value(&event))),
             Err(tokio::sync::broadcast::error::TryRecvError::Lagged(n)) => {
                 payloads.push(stream_lagged_value(n.into()));
             }
@@ -224,6 +251,14 @@ async fn handle_ws_stream(
             WS_CLOSE_INTERNAL_ERROR
         };
         close_ws(socket, close_code, msg).await;
+        return;
+    }
+
+    let hello = serde_json::json!({
+        "type": "server_hello",
+        "instance_id": *state.instance_id,
+    });
+    if !send_ws_batch(&mut socket, vec![hello]).await {
         return;
     }
 
@@ -272,7 +307,7 @@ async fn handle_ws_stream(
             }
             result = rx.recv() => {
                 let mut payloads = match result {
-                    Ok(event) => vec![stream_event_value(&event)],
+                    Ok(event) => vec![strip_live_event(stream_event_value(&event))],
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                         vec![stream_lagged_value(n.into())]
                     }
@@ -539,8 +574,17 @@ pub async fn stream(
 
     let replay_events = state.agent.get_buffered_events(params.from).await;
     let mut rx = state.agent.subscribe();
+    let instance_id = state.instance_id.clone();
 
     let stream = async_stream::stream! {
+        let hello = serde_json::json!({
+            "type": "server_hello",
+            "instance_id": *instance_id,
+        });
+        yield Ok::<_, Infallible>(
+            Event::default().data(serde_json::to_string(&hello).unwrap_or_default()),
+        );
+
         for event in replay_events {
             let data = stream_event_json(&event);
             yield Ok::<_, Infallible>(
@@ -551,7 +595,8 @@ pub async fn stream(
         loop {
             match rx.recv().await {
                 Ok(event) => {
-                    let data = stream_event_json(&event);
+                    let val = strip_live_event(stream_event_value(&event));
+                    let data = serde_json::to_string(&val).unwrap_or_default();
                     yield Ok::<_, Infallible>(
                         Event::default().id(event.id.to_string()).data(data),
                     );

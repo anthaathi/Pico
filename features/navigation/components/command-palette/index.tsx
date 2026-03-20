@@ -25,7 +25,7 @@ import { useRouter } from 'expo-router';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useWorkspaceStore } from '@/features/workspace/store';
-import { useCreateSession } from '@/features/agent/hooks/use-agent-session';
+import { usePiClient } from '@pi-ui/client';
 import { requestBrowserNotificationPermission } from '@/features/agent/browser-notifications';
 
 interface CommandPaletteProps {
@@ -60,7 +60,8 @@ export function CommandPalette({ visible, onClose }: CommandPaletteProps) {
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const selectWorkspace = useWorkspaceStore((s) => s.selectWorkspace);
   const selectedWorkspaceId = useWorkspaceStore((s) => s.selectedWorkspaceId);
-  const createSessionMutation = useCreateSession();
+  const piClient = usePiClient();
+  const createSessionPending = useRef(false);
 
   const bg = isDark ? '#1e1e1e' : '#FFFFFF';
   const borderColor = isDark ? '#3b3a39' : 'rgba(0,0,0,0.12)';
@@ -92,17 +93,18 @@ export function CommandPalette({ visible, onClose }: CommandPaletteProps) {
       icon: Plus,
       section: 'Actions',
       onSelect: async () => {
-        if (!selectedWorkspaceId || createSessionMutation.isPending) return;
+        if (!selectedWorkspaceId || createSessionPending.current) return;
+        createSessionPending.current = true;
         requestBrowserNotificationPermission();
         handleClose();
         try {
-          const info = await createSessionMutation.mutateAsync({
+          const info = await piClient.createAgentSession({
             workspaceId: selectedWorkspaceId,
           });
           router.navigate(
             `/workspace/${selectedWorkspaceId}/s/${info.session_id}`,
           );
-        } catch {}
+        } catch {} finally { createSessionPending.current = false; }
       },
     },
     {

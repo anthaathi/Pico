@@ -332,7 +332,7 @@ const cursorStyles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: "#D71921",
+    backgroundColor: "#999999",
   },
 });
 
@@ -401,6 +401,29 @@ function AssistantMessageComponent({
     [isDark],
   );
   const markdownElements = useStableMarkdown(message.text, markdownOptions, message.isStreaming);
+  const lastBlockOpacity = useSharedValue(1);
+  const prevElementsLenRef = useRef(0);
+
+  useEffect(() => {
+    if (!message.isStreaming) {
+      lastBlockOpacity.value = 1;
+      prevElementsLenRef.current = markdownElements.length;
+      return;
+    }
+    if (markdownElements.length > prevElementsLenRef.current) {
+      lastBlockOpacity.value = 0;
+      lastBlockOpacity.value = withTiming(1, {
+        duration: 300,
+        easing: Easing.out(Easing.cubic),
+      });
+    }
+    prevElementsLenRef.current = markdownElements.length;
+  }, [markdownElements.length, message.isStreaming, lastBlockOpacity]);
+
+  const lastBlockFadeStyle = useAnimatedStyle(() => ({
+    opacity: lastBlockOpacity.value,
+  }));
+
   const groupedToolCalls = useMemo(
     () => (effectiveToolCalls ? groupToolCalls(effectiveToolCalls) : []),
     [effectiveToolCalls],
@@ -698,48 +721,82 @@ function AssistantMessageComponent({
         )}
 
         {hasThinking && (
-          <Animated.View
-            style={[styles.thinkingCollapse, thinkingCollapseStyle]}
-          >
+          <View style={{ position: "relative" }}>
             <View
-              style={[
-                styles.thinkingBlock,
-                {
-                  backgroundColor: isDark ? "#1A1A1A" : "#F5F5F5",
-                  borderColor: isDark ? "#2A2A2A" : "#E8E8E8",
-                },
-              ]}
-              onLayout={(event) => {
-                const nextHeight = event.nativeEvent.layout.height;
-                if (nextHeight !== thinkingContentHeight) {
-                  setThinkingContentHeight(nextHeight);
-                }
-              }}
+              style={{ position: "absolute", opacity: 0, zIndex: -1 }}
+              pointerEvents="none"
             >
-              <Text
-                style={[
-                  styles.thinkingText,
-                  { color: isDark ? "#888" : "#666" },
-                ]}
-                selectable
+              <View
+                onLayout={(event) => {
+                  const nextHeight = event.nativeEvent.layout.height;
+                  if (nextHeight !== thinkingContentHeight) {
+                    setThinkingContentHeight(nextHeight);
+                  }
+                }}
               >
-                {message.thinking}
-              </Text>
+                <View
+                  style={[
+                    styles.thinkingBlock,
+                    {
+                      backgroundColor: isDark ? "#1A1A1A" : "#F5F5F5",
+                      borderColor: isDark ? "#2A2A2A" : "#E8E8E8",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.thinkingText,
+                      { color: isDark ? "#888" : "#666" },
+                    ]}
+                  >
+                    {message.thinking}
+                  </Text>
+                </View>
+              </View>
             </View>
-          </Animated.View>
+            <Animated.View
+              style={[styles.thinkingCollapse, thinkingCollapseStyle]}
+            >
+              <View
+                style={[
+                  styles.thinkingBlock,
+                  {
+                    backgroundColor: isDark ? "#1A1A1A" : "#F5F5F5",
+                    borderColor: isDark ? "#2A2A2A" : "#E8E8E8",
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.thinkingText,
+                    { color: isDark ? "#888" : "#666" },
+                  ]}
+                  selectable
+                >
+                  {message.thinking}
+                </Text>
+              </View>
+            </Animated.View>
+          </View>
         )}
 
         {message.text.length > 0 && (
           <View style={styles.markdownWrap}>
-            {markdownElements.map((el, i) => (
-              <View key={i} style={styles.markdownBlock}>
-                {el}
-              </View>
-            ))}
-            {message.isStreaming && !hasToolCalls && (
-              <View style={styles.cursorWrap}>
-                <StreamingCursor />
-              </View>
+            {markdownElements.map((el, i) => {
+              const isLast = message.isStreaming && i === markdownElements.length - 1;
+              return isLast ? (
+                <Animated.View key={i} style={[styles.markdownBlock, lastBlockFadeStyle, styles.lastBlockRow]}>
+                  {el}
+                  {!hasToolCalls && <StreamingCursor />}
+                </Animated.View>
+              ) : (
+                <View key={i} style={styles.markdownBlock}>
+                  {el}
+                </View>
+              );
+            })}
+            {message.isStreaming && !hasToolCalls && markdownElements.length === 0 && (
+              <StreamingCursor />
             )}
           </View>
         )}
@@ -962,6 +1019,12 @@ const styles = StyleSheet.create({
   markdownBlock: {
     minWidth: 0,
   },
+  lastBlockRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "flex-end",
+  },
+
   cursorWrap: {
     paddingTop: 2,
   },

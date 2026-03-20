@@ -19,14 +19,7 @@ import { THINKING_LEVELS, FlatModel, ThinkingLevel } from './constants';
 import { matchesModelSearch } from './model-search';
 import { usePromptTheme } from './use-theme-colors';
 import { ProviderIcon } from './provider-icons';
-import {
-  useAgentModels,
-  useAgentState,
-  useSetAgentMode,
-  useSetModel,
-  useSetThinkingLevel,
-  type ModelInfo,
-} from '@/features/agent/hooks/use-agent-config';
+import { useAgentConfig } from '@pi-ui/client';
 import type { AgentMode } from '@/features/agent/mode';
 import { useAppMode } from '@/hooks/use-app-mode';
 
@@ -66,11 +59,11 @@ function ToolbarComponent({
   const modelScrollRef = useRef<ScrollView>(null);
   const modelSearchRef = useRef<TextInput>(null);
 
-  const { data: models, isLoading: modelsLoading } = useAgentModels(sessionId, ready);
-  const { data: agentState, isLoading: stateLoading } = useAgentState(sessionId, ready);
-  const setModelMutation = useSetModel(sessionId);
-  const setThinkingMutation = useSetThinkingLevel(sessionId);
-  const setModeMutation = useSetAgentMode(sessionId);
+  const config = useAgentConfig(ready ? (sessionId ?? null) : null);
+  const models = config.models;
+  const agentState = config.state;
+  const modelsLoading = config.isLoading;
+  const stateLoading = config.isLoading;
   const hasCachedModels = models !== undefined;
   const hasCachedState = agentState !== undefined;
   const showCachedToolbar = hasCachedModels && hasCachedState;
@@ -121,15 +114,18 @@ function ToolbarComponent({
 
   const providers = useMemo(() => {
     if (!models) return [];
-    const grouped = new Map<string, ModelInfo[]>();
+    const grouped = new Map<string, Array<{ id: string; name?: string; provider?: string; reasoning?: boolean }>>(); 
     const order: string[] = [];
     for (const m of models) {
-      if (!matchesModelSearch(modelSearch, m)) continue;
-      if (!grouped.has(m.provider)) {
-        grouped.set(m.provider, []);
-        order.push(m.provider);
+      const provider = m.provider ?? "unknown";
+      const name = m.name ?? m.id;
+      const searchable = { ...m, name, provider };
+      if (!matchesModelSearch(modelSearch, searchable)) continue;
+      if (!grouped.has(provider)) {
+        grouped.set(provider, []);
+        order.push(provider);
       }
-      grouped.get(m.provider)!.push(m);
+      grouped.get(provider)!.push({ ...m, name, provider });
     }
     return order.map((p) => ({ name: p, models: grouped.get(p)! }));
   }, [models, modelSearch]);
@@ -138,7 +134,7 @@ function ToolbarComponent({
     const list: FlatModel[] = [];
     for (const p of providers) {
       for (const m of p.models) {
-        list.push({ provider: m.provider, modelId: m.id, modelName: m.name });
+        list.push({ provider: m.provider ?? "unknown", modelId: m.id, modelName: m.name ?? m.id });
       }
     }
     return list;
@@ -154,16 +150,16 @@ function ToolbarComponent({
   }, [popoverIndex, activeDropdown]);
 
   const handleSelectModel = useCallback((provider: string, modelId: string) => {
-    setModelMutation.mutate({ provider, modelId });
+    config.setModel({ provider, modelId });
     setActiveDropdown(null);
     setTimeout(() => inputRef.current?.focus(), 0);
-  }, [setModelMutation, inputRef]);
+  }, [config, inputRef]);
 
   const handleSelectThinking = useCallback((level: ThinkingLevel) => {
-    setThinkingMutation.mutate(level);
+    config.setThinkingLevel(level);
     setActiveDropdown(null);
     setTimeout(() => inputRef.current?.focus(), 0);
-  }, [setThinkingMutation, inputRef]);
+  }, [config, inputRef]);
 
   const handleSelectMode = useCallback((mode: AgentMode) => {
     if (mode === currentMode) {
@@ -171,14 +167,9 @@ function ToolbarComponent({
       return;
     }
     setPendingMode(mode);
-    setModeMutation.mutate({
-      mode,
-      currentMode,
-    }, {
-      onError: () => setPendingMode(null),
-    });
+    config.setMode(mode).catch(() => setPendingMode(null));
     setTimeout(() => inputRef.current?.focus(), 0);
-  }, [currentMode, inputRef, setModeMutation]);
+  }, [currentMode, inputRef, config]);
 
   const toggleDropdown = useCallback(
     (type: DropdownType) => {
@@ -328,9 +319,9 @@ function ToolbarComponent({
                       return (
                         <Pressable
                           key={model.id}
-                          onPress={() => handleSelectModel(model.provider, model.id)}
+                          onPress={() => handleSelectModel(model.provider ?? "unknown", model.id)}
                           accessibilityRole="menuitem"
-                          accessibilityLabel={`${model.name} by ${model.provider}`}
+                          accessibilityLabel={`${model.name ?? model.id} by ${model.provider ?? "unknown"}`}
                           accessibilityState={{ selected: isActive }}
                           style={({ pressed, hovered }: any) => [
                             styles.modelItem,
@@ -339,7 +330,7 @@ function ToolbarComponent({
                           ]}
                         >
                           <View style={styles.modelRow}>
-                            <ProviderIcon provider={model.provider} size={14} color={isActive ? theme.accentColor : theme.textMuted} />
+                            <ProviderIcon provider={model.provider ?? "unknown"} size={14} color={isActive ? theme.accentColor : theme.textMuted} />
                             <Text style={[styles.modelName, { color: isActive ? theme.accentColor : theme.textPrimary }]}>
                               {model.name}
                             </Text>
@@ -447,9 +438,9 @@ function ToolbarComponent({
                 }
                 accessibilityState={{
                   selected: isActive,
-                  disabled: toolbarDisabled || setModeMutation.isPending,
+                  disabled: toolbarDisabled || false,
                 }}
-                disabled={toolbarDisabled || setModeMutation.isPending}
+                disabled={toolbarDisabled || false}
                 onPress={() => handleSelectMode(mode)}
                 style={({ pressed }) => [
                   styles.modeButton,

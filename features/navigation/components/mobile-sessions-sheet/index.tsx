@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -14,7 +14,7 @@ import { usePathname, useRouter } from 'expo-router';
 
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useCreateSession } from '@/features/agent/hooks/use-agent-session';
+import { usePiClient } from '@pi-ui/client';
 import { useWorkspaceStore } from '@/features/workspace/store';
 import { useSessions } from '@/features/workspace/hooks/use-sessions';
 import { requestBrowserNotificationPermission } from '@/features/agent/browser-notifications';
@@ -39,7 +39,8 @@ export function MobileSessionsSheet({ visible, onClose }: MobileSessionsSheetPro
   const overlayOpacity = useSharedValue(0);
 
   const router = useRouter();
-  const createSession = useCreateSession();
+  const piClient = usePiClient();
+  const [createPending, setCreatePending] = useState(false);
   const selectedWorkspaceId = useWorkspaceStore((s) => s.selectedWorkspaceId);
   const workspace = useWorkspaceStore((s) =>
     s.workspaces.find((w) => w.id === s.selectedWorkspaceId)
@@ -79,16 +80,17 @@ export function MobileSessionsSheet({ visible, onClose }: MobileSessionsSheetPro
   }, [translateY, overlayOpacity, onClose]);
 
   const handleNewSession = useCallback(async () => {
-    if (!selectedWorkspaceId || createSession.isPending) return;
+    if (!selectedWorkspaceId || createPending) return;
+    setCreatePending(true);
     requestBrowserNotificationPermission();
     try {
-      const info = await createSession.mutateAsync({
+      const info = await piClient.createAgentSession({
         workspaceId: selectedWorkspaceId,
       });
       router.navigate(`/workspace/${selectedWorkspaceId}/s/${info.session_id}`);
       dismiss();
-    } catch {}
-  }, [selectedWorkspaceId, createSession, router, dismiss]);
+    } catch {} finally { setCreatePending(false); }
+  }, [selectedWorkspaceId, createPending, piClient, router, dismiss]);
 
   const panGesture = Gesture.Pan()
     .onUpdate((e) => {
@@ -175,14 +177,14 @@ export function MobileSessionsSheet({ visible, onClose }: MobileSessionsSheetPro
           <View style={styles.actions}>
             <Pressable
               onPress={handleNewSession}
-              disabled={createSession.isPending}
+              disabled={createPending}
               style={({ pressed }) => [
                 styles.newSessionButton,
                 { backgroundColor: btnBg },
                 pressed && { opacity: 0.8 },
               ]}
             >
-              {createSession.isPending ? (
+              {createPending ? (
                 <ActivityIndicator size={14} color={textPrimary} />
               ) : (
                 <SquarePen size={14} color={textPrimary} strokeWidth={1.8} />

@@ -1,6 +1,9 @@
 {
   "name": "pi-ui",
   "packageManager": "yarn@4.9.2",
+  "workspaces": [
+    "packages/*"
+  ],
   "main": "expo-router/entry",
   "version": "1.0.6",
   "scripts": {
@@ -22,6 +25,7 @@
     "@hey-api/client-fetch": "^0.13.1",
     "@jsamr/counter-style": "2.0.2",
     "@jsamr/react-native-li": "2.3.1",
+    "@pi-ui/client": "workspace:packages/pi-client",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",

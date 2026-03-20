@@ -26,7 +26,7 @@ import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useWorkspaceStore } from '@/features/workspace/store';
 import { useSessions } from '@/features/workspace/hooks/use-sessions';
-import { useCreateSession } from '@/features/agent/hooks/use-agent-session';
+import { usePiClient } from '@pi-ui/client';
 import { requestBrowserNotificationPermission } from '@/features/agent/browser-notifications';
 import { NewWorkspaceDialog } from '@/features/workspace/components/new-workspace-dialog';
 import { SessionActivityIndicator } from '@/features/workspace/components/session-activity-indicator';
@@ -355,17 +355,19 @@ function SessionPage({ workspaceId, onSessionPress, onDismiss }: SessionPageProp
     isRefetching,
   } = useSessions(workspaceId);
 
-  const createSession = useCreateSession();
+  const piClient = usePiClient();
+  const [createPending, setCreatePending] = useState(false);
 
   const handleNewSession = useCallback(async () => {
-    if (createSession.isPending) return;
+    if (createPending) return;
+    setCreatePending(true);
     requestBrowserNotificationPermission();
     try {
-      const info = await createSession.mutateAsync({ workspaceId });
+      const info = await piClient.createAgentSession({ workspaceId });
       router.navigate(`/workspace/${workspaceId}/s/${info.session_id}`);
       onDismiss();
-    } catch {}
-  }, [workspaceId, createSession, router, onDismiss]);
+    } catch {} finally { setCreatePending(false); }
+  }, [workspaceId, createPending, piClient, router, onDismiss]);
 
   return (
     <View style={styles.pageContent}>
@@ -392,14 +394,14 @@ function SessionPage({ workspaceId, onSessionPress, onDismiss }: SessionPageProp
       <View style={styles.actions}>
         <Pressable
           onPress={handleNewSession}
-          disabled={createSession.isPending}
+          disabled={createPending}
           style={({ pressed }) => [
             styles.newSessionButton,
             { backgroundColor: btnBg },
             pressed && { opacity: 0.8 },
           ]}
         >
-          {createSession.isPending ? (
+          {createPending ? (
             <ActivityIndicator size={14} color={textPrimary} />
           ) : (
             <SquarePen size={14} color={textPrimary} strokeWidth={1.8} />

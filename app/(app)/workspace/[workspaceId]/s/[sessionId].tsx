@@ -1,6 +1,7 @@
 import { useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Keyboard,
   Platform,
@@ -18,18 +19,10 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { MessageList } from "@/features/agent/components/message-list";
 import { ChatShimmer } from "@/features/agent/components/message-list/chat-shimmer";
 import { ExtensionUiDialog } from "@/features/agent/components/extension-ui-dialog";
-import {
-  useAgentSession,
-  useSendPrompt,
-  useAbortAgent,
-  type PromptStreamingBehavior,
-} from "@/features/agent/hooks/use-agent-session";
-import { useAgentStore } from "@/features/agent/store";
+import { useAgentSession, useConnection } from "@pi-ui/client";
 import { useSessions } from "@/features/workspace/hooks/use-sessions";
-import type { ChatMessage } from "@/features/agent/types";
 import { requestBrowserNotificationPermission } from "@/features/agent/browser-notifications";
-
-const EMPTY_MESSAGES: ChatMessage[] = [];
+import type { PendingExtensionUiRequest as LegacyPendingUiRequest } from "@/features/agent/extension-ui";
 
 export default function SessionScreen() {
   const { workspaceId, sessionId } = useLocalSearchParams<{
@@ -40,6 +33,7 @@ export default function SessionScreen() {
   const colors = Colors[colorScheme];
   const { isWideScreen } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
 
   const selectWorkspace = useWorkspaceStore((s) => s.selectWorkspace);
   const clearWorkspaceNotification = useWorkspaceStore(
@@ -60,76 +54,55 @@ export default function SessionScreen() {
   }, [workspaceId, sessionId, setLastSession]);
 
   const { sessions } = useSessions(workspaceId ?? null);
-  const session = (sessions as any[])?.find(
-    (s: any) => s.id === sessionId,
+  const session = (sessions as Array<{ id: string; file_path: string }>)?.find(
+    (s) => s.id === sessionId,
   );
   const sessionFile = session?.file_path ?? null;
 
-  const { isSessionReady } = useAgentSession(
-    sessionId ?? null,
-    workspaceId ?? null,
-    sessionFile,
-  );
+  const agentSession = useAgentSession(sessionId ?? null, {
+    workspaceId: workspaceId ?? "",
+    sessionFile: sessionFile ?? "",
+  });
 
-  const isStreaming = useAgentStore(
-    (s) => s.streaming[sessionId ?? ""] ?? false,
-  );
-  const messages = useAgentStore(
-    (s) => s.messages[sessionId ?? ""] ?? EMPTY_MESSAGES,
-  );
-  const pendingExtensionUiRequest = useAgentStore(
-    (s) => s.pendingExtensionUiRequests[sessionId ?? ""] ?? null,
-  );
-  const setAlertMessage = useAgentStore((s) => s.setAlertMessage);
-  const connectionStatus = useAgentStore((s) => s.connection.status);
+  const connection = useConnection();
   const inputBlockedByConnection =
-    connectionStatus === "reconnecting" || connectionStatus === "disconnected";
-
-  const sendPromptMutation = useSendPrompt();
-  const abortAgent = useAbortAgent();
-  const sendRef = useRef(sendPromptMutation.mutate);
-  sendRef.current = sendPromptMutation.mutate;
+    connection.status === "reconnecting" || connection.status === "disconnected";
 
   const handleSend = useCallback(
     (
       text: string,
       _attachments: unknown[],
-      options?: { queueBehavior?: PromptStreamingBehavior },
+      options?: { queueBehavior?: "steer" | "followUp" },
     ) => {
       if (!sessionId || inputBlockedByConnection) return;
       setAlertMessage(null);
       requestBrowserNotificationPermission();
-      sendRef.current(
-        {
-          sessionId,
-          message: text,
-          streamingBehavior: options?.queueBehavior ?? (isStreaming ? "steer" : undefined),
-          workspaceId: workspaceId ?? undefined,
-          sessionFile: sessionFile ?? undefined,
-        },
-        {
-          onError: (error) => {
-            setAlertMessage(
-              error instanceof Error ? error.message : "Failed to send prompt",
-            );
-          },
-        },
-      );
+
+      const behavior = options?.queueBehavior ?? (agentSession.isStreaming ? "steer" : undefined);
+      const sendFn = behavior === "steer"
+        ? agentSession.steer
+        : behavior === "followUp"
+          ? agentSession.followUp
+          : agentSession.prompt;
+
+      sendFn(text).catch((error) => {
+        setAlertMessage(
+          error instanceof Error ? error.message : "Failed to send prompt",
+        );
+      });
     },
-    [inputBlockedByConnection, sessionId, isStreaming, workspaceId, sessionFile, setAlertMessage],
+    [inputBlockedByConnection, sessionId, agentSession],
   );
 
   const handleAbort = useCallback(() => {
     if (!sessionId) return;
     setAlertMessage(null);
-    abortAgent.mutate(sessionId, {
-      onError: (error) => {
-        setAlertMessage(
-          error instanceof Error ? error.message : "Failed to abort",
-        );
-      },
+    agentSession.abort().catch((error) => {
+      setAlertMessage(
+        error instanceof Error ? error.message : "Failed to abort",
+      );
     });
-  }, [sessionId, abortAgent, setAlertMessage]);
+  }, [sessionId, agentSession]);
 
   const isDark = colorScheme === "dark";
   const editorBg = isDark ? "#151515" : "#FAFAFA";
@@ -167,8 +140,7 @@ export default function SessionScreen() {
     };
   }, [keyboardPadding, insets.bottom]);
 
-  const hasMessages = messages.length > 0;
-  const isLoadingHistory = !!sessionId && !hasMessages;
+  const hasMessages = agentSession.messages.length > 0;
 
   return (
     <Animated.View
@@ -186,28 +158,30 @@ export default function SessionScreen() {
         <View style={[styles.editorColumn, { backgroundColor: editorBg }]}>
           {hasMessages && sessionId ? (
             <MessageList key={sessionId} sessionId={sessionId} />
-          ) : isLoadingHistory ? (
-            <ChatShimmer />
+          ) : agentSession.isLoading || (!agentSession.isReady && sessionId) ? (
+            <View style={styles.emptyCenter}>
+              <ActivityIndicator size="small" />
+            </View>
           ) : (
             <View style={styles.emptyCenter} />
           )}
           <ExtensionUiDialog
             sessionId={sessionId}
-            request={pendingExtensionUiRequest}
+            request={agentSession.pendingExtensionUiRequest as LegacyPendingUiRequest | null}
           />
           <PromptInput
             sessionId={sessionId}
             onSend={handleSend}
-            isStreaming={isStreaming}
+            isStreaming={agentSession.isStreaming}
             onAbort={handleAbort}
-            sessionReady={isSessionReady}
+            sessionReady={agentSession.isReady}
             disabled={
               inputBlockedByConnection ||
-              !isSessionReady ||
-              !!pendingExtensionUiRequest
+              !agentSession.isReady ||
+              !!agentSession.pendingExtensionUiRequest
             }
             allowTypingWhileDisabled={!inputBlockedByConnection}
-            stackedAbove={!!pendingExtensionUiRequest}
+            stackedAbove={!!agentSession.pendingExtensionUiRequest}
           />
         </View>
 
@@ -219,8 +193,6 @@ export default function SessionScreen() {
           </WorkspaceSidebar>
         )}
       </View>
-
-      {/* Terminal stub removed */}
     </Animated.View>
   );
 }
@@ -238,5 +210,7 @@ const styles = StyleSheet.create({
   },
   emptyCenter: {
     flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

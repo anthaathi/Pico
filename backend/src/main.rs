@@ -13,6 +13,7 @@ use crate::cli::{Cli, Commands};
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
+    let force_qr = cli.qr;
 
     match cli.command {
         Some(Commands::Init) => cli::init::run_init(),
@@ -21,10 +22,9 @@ fn main() -> anyhow::Result<()> {
             println!("password_hash = \"{hash}\"");
             Ok(())
         }
-        Some(Commands::Qr) => cli::print_qr(&cli.config),
         None => tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()?
-            .block_on(server::serve(cli)),
+            .block_on(server::serve(cli, force_qr)),
     }
 }

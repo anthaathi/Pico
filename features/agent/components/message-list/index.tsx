@@ -9,10 +9,17 @@ import {
   View,
 } from "react-native";
 import { ArrowDown } from "lucide-react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+  Easing,
+} from "react-native-reanimated";
 
 import { Fonts } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useAgentStore } from "../../store";
+import { useAgentSession } from "@pi-ui/client";
 import type { ChatMessage, ToolCallInfo } from "../../types";
 import { AssistantMessage } from "./assistant-message";
 import { SystemMessage } from "./system-message";
@@ -318,12 +325,87 @@ const MessageListFooter = memo(function MessageListFooter({
   );
 });
 
+function ShimmerLine({ width, isDark }: { width: `${number}%` | number; isDark: boolean }) {
+  const opacity = useSharedValue(0.3);
+
+  useEffect(() => {
+    opacity.value = withRepeat(
+      withTiming(1, { duration: 800, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true,
+    );
+  }, [opacity]);
+
+  const animStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  return (
+    <Animated.View
+      style={[
+        shimmerStyles.line,
+        animStyle,
+        {
+          width,
+          backgroundColor: isDark ? "#2A2A2A" : "#E8E8E8",
+        },
+      ]}
+    />
+  );
+}
+
+function MessageShimmer({ isDark }: { isDark: boolean }) {
+  return (
+    <View style={shimmerStyles.container}>
+      <View style={shimmerStyles.userBlock}>
+        <ShimmerLine width="45%" isDark={isDark} />
+      </View>
+      <View style={shimmerStyles.assistantBlock}>
+        <ShimmerLine width="90%" isDark={isDark} />
+        <ShimmerLine width="100%" isDark={isDark} />
+        <ShimmerLine width="75%" isDark={isDark} />
+        <ShimmerLine width="60%" isDark={isDark} />
+      </View>
+      <View style={shimmerStyles.userBlock}>
+        <ShimmerLine width="35%" isDark={isDark} />
+      </View>
+      <View style={shimmerStyles.assistantBlock}>
+        <ShimmerLine width="85%" isDark={isDark} />
+        <ShimmerLine width="95%" isDark={isDark} />
+        <ShimmerLine width="50%" isDark={isDark} />
+      </View>
+    </View>
+  );
+}
+
+const shimmerStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    gap: 20,
+    maxWidth: 1080,
+    alignSelf: "center",
+    width: "100%",
+  },
+  userBlock: {
+    alignItems: "flex-end",
+    gap: 8,
+  },
+  assistantBlock: {
+    gap: 8,
+  },
+  line: {
+    height: 14,
+    borderRadius: 7,
+  },
+});
+
 export function MessageList({ sessionId }: { sessionId: string }) {
   const colorScheme = useColorScheme() ?? "light";
   const isDark = colorScheme === "dark";
 
-  const messages = useAgentStore((s) => s.messages[sessionId] ?? EMPTY_MESSAGES);
-  const isStreaming = useAgentStore((s) => s.streaming[sessionId] ?? false);
+  const session = useAgentSession(sessionId);
+  const messages = session.messages as ChatMessage[];
+  const isStreaming = session.isStreaming;
 
   const listRef = useRef<FlatList<VisibleMessageItem>>(null);
   const isNearBottomRef = useRef(true);
@@ -451,6 +533,9 @@ export function MessageList({ sessionId }: { sessionId: string }) {
   );
 
   if (visibleItems.length === 0) {
+    if (session.isLoading) {
+      return <MessageShimmer isDark={isDark} />;
+    }
     return null;
   }
 

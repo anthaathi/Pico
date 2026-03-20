@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Keyboard,
   Platform,
@@ -16,25 +17,11 @@ import { MessageList } from '@/features/agent/components/message-list';
 import { ChatShimmer } from '@/features/agent/components/message-list/chat-shimmer';
 import { PromptInput } from '@/features/workspace/components/prompt-input';
 import { ExtensionUiDialog } from '@/features/agent/components/extension-ui-dialog';
-import {
-  useSendPrompt,
-  useAbortAgent,
-  type PromptStreamingBehavior,
-} from '@/features/agent/hooks/use-agent-session';
-import { useAgentStore } from '@/features/agent/store';
+import { useAgentSession, useConnection } from '@pi-ui/client';
 import { useChatStore } from '@/features/chat/store';
 import { useChatSessions } from '@/features/chat/hooks/use-chat-sessions';
-import { touchChatSession } from '@/features/chat/api';
-import {
-  getMessages as apiGetMessages,
-  getState as apiGetState,
-} from '@/features/api/generated/sdk.gen';
-import { unwrapApiData } from '@/features/api/unwrap';
-import { parsePendingExtensionUiRequest } from '@/features/agent/extension-ui';
 import { useWorkspaceStore } from '@/features/workspace/store';
-import type { ChatMessage } from '@/features/agent/types';
-
-const EMPTY_MESSAGES: ChatMessage[] = [];
+import type { PendingExtensionUiRequest as LegacyPendingUiRequest } from '@/features/agent/extension-ui';
 
 export default function ChatSessionScreen() {
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
@@ -45,24 +32,16 @@ export default function ChatSessionScreen() {
   const insets = useSafeAreaInsets();
 
   const selectSession = useChatStore((s) => s.selectSession);
-  const setHistoryMessages = useAgentStore((s) => s.setHistoryMessages);
-  const setAlertMessage = useAgentStore((s) => s.setAlertMessage);
-  const setPendingExtensionUiRequest = useAgentStore((s) => s.setPendingExtensionUiRequest);
   const registerSessionWorkspace = useWorkspaceStore((s) => s.registerSessionWorkspace);
   const { invalidate: invalidateChatSessions } = useChatSessions();
+  const [alertMessage, setAlertMessage] = React.useState<string | null>(null);
 
-  const isStreaming = useAgentStore((s) => s.streaming[sessionId ?? ''] ?? false);
-  const messages = useAgentStore((s) => s.messages[sessionId ?? ''] ?? EMPTY_MESSAGES);
-  const pendingExtensionUiRequest = useAgentStore(
-    (s) => s.pendingExtensionUiRequests[sessionId ?? ''] ?? null,
-  );
-  const connectionStatus = useAgentStore((s) => s.connection.status);
-  const inputBlocked = connectionStatus === 'reconnecting' || connectionStatus === 'disconnected';
+  const session = useAgentSession(sessionId ?? null, {
+    sessionFile: sessionId ?? '',
+  });
 
-  const sendPromptMutation = useSendPrompt();
-  const abortAgent = useAbortAgent();
-  const touchedRef = useRef<string | null>(null);
-  const [isReady, setIsReady] = React.useState(false);
+  const connection = useConnection();
+  const inputBlocked = connection.status === 'reconnecting' || connection.status === 'disconnected';
 
   useEffect(() => {
     if (!sessionId) return;
@@ -70,78 +49,38 @@ export default function ChatSessionScreen() {
     registerSessionWorkspace(sessionId, '__chat__');
   }, [sessionId, selectSession, registerSessionWorkspace]);
 
-  useEffect(() => {
-    if (!sessionId) return;
-    if (touchedRef.current === sessionId) return;
-    touchedRef.current = sessionId;
-    setIsReady(false);
-
-    let cancelled = false;
-
-    (async () => {
-      const msgs = await apiGetMessages({ body: { session_id: sessionId } });
-      if (!cancelled && !msgs.error) {
-        const data = unwrapApiData(msgs.data) as Record<string, any> | undefined;
-        if (data?.messages) setHistoryMessages(sessionId, data.messages);
-      }
-
-      try {
-        await touchChatSession(sessionId);
-      } catch {}
-
-      const stateResult = await apiGetState({ body: { session_id: sessionId } });
-      if (!cancelled && !stateResult.error) {
-        const data = unwrapApiData(stateResult.data) as Record<string, unknown> | undefined;
-        setPendingExtensionUiRequest(
-          sessionId,
-          parsePendingExtensionUiRequest(data?.pendingExtensionUiRequest),
-        );
-      }
-
-      if (!cancelled) setIsReady(true);
-    })();
-
-    return () => { cancelled = true; };
-  }, [sessionId, setHistoryMessages, setPendingExtensionUiRequest]);
-
   const handleSend = useCallback(
-    (text: string, _attachments: unknown[], options?: { queueBehavior?: PromptStreamingBehavior }) => {
+    (text: string, _attachments: unknown[], options?: { queueBehavior?: 'steer' | 'followUp' }) => {
       if (!sessionId || inputBlocked) return;
       setAlertMessage(null);
 
-      const isFirst = !messages.length;
+      const isFirst = !session.messages.length;
+      const behavior = options?.queueBehavior ?? (session.isStreaming ? 'steer' : undefined);
+      const sendFn = behavior === 'steer'
+        ? session.steer
+        : behavior === 'followUp'
+          ? session.followUp
+          : session.prompt;
 
-      sendPromptMutation.mutate(
-        {
-          sessionId,
-          message: text,
-          streamingBehavior: options?.queueBehavior ?? (isStreaming ? 'steer' : undefined),
-        },
-        {
-          onSuccess: () => {
-            if (isFirst) setTimeout(() => invalidateChatSessions(), 2000);
-          },
-          onError: (error) => {
-            setAlertMessage(error instanceof Error ? error.message : 'Failed to send prompt');
-          },
-        },
-      );
+      sendFn(text)
+        .then(() => { if (isFirst) setTimeout(() => invalidateChatSessions(), 2000); })
+        .catch((error) => {
+          setAlertMessage(error instanceof Error ? error.message : 'Failed to send prompt');
+        });
     },
-    [sessionId, inputBlocked, isStreaming, messages.length, sendPromptMutation, setAlertMessage, invalidateChatSessions],
+    [sessionId, inputBlocked, session, invalidateChatSessions],
   );
 
   const handleAbort = useCallback(() => {
     if (!sessionId) return;
     setAlertMessage(null);
-    abortAgent.mutate(sessionId, {
-      onError: (error) => {
-        setAlertMessage(error instanceof Error ? error.message : 'Failed to abort');
-      },
+    session.abort().catch((error) => {
+      setAlertMessage(error instanceof Error ? error.message : 'Failed to abort');
     });
-  }, [sessionId, abortAgent, setAlertMessage]);
+  }, [sessionId, session]);
 
   const editorBg = isDark ? '#151515' : '#FAFAFA';
-  const hasMessages = messages.length > 0;
+  const hasMessages = session.messages.length > 0;
 
   const keyboardPadding = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -149,49 +88,39 @@ export default function ChatSessionScreen() {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
     const showSub = Keyboard.addListener(showEvent, (e) => {
-      const height = Platform.OS === 'ios'
-        ? e.endCoordinates.height - insets.bottom
-        : e.endCoordinates.height;
-      Animated.spring(keyboardPadding, {
-        toValue: height, tension: 160, friction: 20, useNativeDriver: false,
-      }).start();
+      const height = Platform.OS === 'ios' ? e.endCoordinates.height - insets.bottom : e.endCoordinates.height;
+      Animated.spring(keyboardPadding, { toValue: height, tension: 160, friction: 20, useNativeDriver: false }).start();
     });
     const hideSub = Keyboard.addListener(hideEvent, () => {
-      Animated.spring(keyboardPadding, {
-        toValue: 0, tension: 160, friction: 20, useNativeDriver: false,
-      }).start();
+      Animated.spring(keyboardPadding, { toValue: 0, tension: 160, friction: 20, useNativeDriver: false }).start();
     });
     return () => { showSub.remove(); hideSub.remove(); };
   }, [keyboardPadding, insets.bottom]);
 
   return (
     <Animated.View
-      style={[
-        styles.container,
-        {
-          backgroundColor: isDark ? '#121212' : colors.background,
-          paddingBottom: isWideScreen ? 0 : Animated.add(keyboardPadding, insets.bottom),
-        },
-      ]}
+      style={[styles.container, { backgroundColor: isDark ? '#121212' : colors.background, paddingBottom: isWideScreen ? 0 : Animated.add(keyboardPadding, insets.bottom) }]}
     >
       <View style={[styles.editorColumn, { backgroundColor: editorBg }]}>
         {hasMessages && sessionId ? (
           <MessageList key={sessionId} sessionId={sessionId} />
-        ) : !isReady ? (
-          <ChatShimmer />
+        ) : session.isLoading || (!session.isReady && sessionId) ? (
+          <View style={styles.emptyCenter}>
+            <ActivityIndicator size="small" />
+          </View>
         ) : (
           <View style={styles.emptyCenter} />
         )}
-        <ExtensionUiDialog sessionId={sessionId} request={pendingExtensionUiRequest} />
+        <ExtensionUiDialog sessionId={sessionId} request={session.pendingExtensionUiRequest as LegacyPendingUiRequest | null} />
         <PromptInput
           sessionId={sessionId}
           onSend={handleSend}
-          isStreaming={isStreaming}
+          isStreaming={session.isStreaming}
           onAbort={handleAbort}
-          sessionReady={isReady}
-          disabled={inputBlocked || !isReady || !!pendingExtensionUiRequest}
+          sessionReady={session.isReady}
+          disabled={inputBlocked || !session.isReady || !!session.pendingExtensionUiRequest}
           allowTypingWhileDisabled={!inputBlocked}
-          stackedAbove={!!pendingExtensionUiRequest}
+          stackedAbove={!!session.pendingExtensionUiRequest}
         />
       </View>
     </Animated.View>
@@ -201,5 +130,5 @@ export default function ChatSessionScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   editorColumn: { flex: 1 },
-  emptyCenter: { flex: 1 },
+  emptyCenter: { flex: 1, alignItems: "center" as const, justifyContent: "center" as const },
 });

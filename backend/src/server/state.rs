@@ -11,4 +11,5 @@ pub struct AppState {
     pub db: Arc<Database>,
     pub pairing: PairingManager,
     pub agent: AgentManager,
+    pub instance_id: Arc<String>,
 }

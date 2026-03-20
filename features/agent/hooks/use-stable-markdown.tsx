@@ -142,7 +142,7 @@ function buildStyles(
   });
 }
 
-const STREAMING_THROTTLE_MS = 150;
+const STREAMING_THROTTLE_MS = 100;
 
 /**
  * A drop-in replacement for `useMarkdown` from react-native-marked that:
@@ -160,7 +160,6 @@ export function useStableMarkdown(
   options: useMarkdownHookOptions,
   isStreaming?: boolean,
 ): JSX.Element[] {
-  // --- Throttled text value during streaming ---------------------------------
   const textRef = useRef(text);
   textRef.current = text;
 
@@ -213,7 +212,6 @@ export function useStableMarkdown(
   const Parser = getParserClass();
 
   const elements = useMemo(() => {
-    // Fresh Renderer each parse → fresh slugger → deterministic React keys.
     const renderer = new Renderer();
     const parser = new Parser({ styles, baseUrl: options.baseUrl, renderer });
     const tokens = lexer(throttledText, {

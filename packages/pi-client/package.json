@@ -1,0 +1,22 @@
+{
+  "name": "@pi-ui/client",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "api:generate": "openapi-ts -i http://127.0.0.1:5454/api-docs/openapi.json -o ./src/generated -c @hey-api/client-fetch"
+  },
+  "dependencies": {
+    "@hey-api/client-fetch": "^0.11.0",
+    "rxjs": "^7.8.1"
+  },
+  "peerDependencies": {
+    "react": ">=19.0.0"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "^0.73.0",
+    "typescript": "~5.8.0"
+  }
+}

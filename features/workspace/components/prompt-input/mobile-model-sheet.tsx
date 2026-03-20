@@ -6,12 +6,7 @@ import { Fonts } from '@/constants/theme';
 import { matchesModelSearch } from './model-search';
 import { usePromptTheme } from './use-theme-colors';
 import { ProviderIcon } from './provider-icons';
-import {
-  useAgentModels,
-  useAgentState,
-  useSetModel,
-  type ModelInfo,
-} from '@/features/agent/hooks/use-agent-config';
+import { useAgentConfig } from '@pi-ui/client';
 
 interface MobileModelSheetProps {
   visible: boolean;
@@ -30,10 +25,9 @@ function MobileModelSheetComponent({
   const slideAnim = useRef(new Animated.Value(300)).current;
   const overlayAnim = useRef(new Animated.Value(0)).current;
 
-  const { data: models } = useAgentModels(sessionId);
-  const { data: agentState } = useAgentState(sessionId);
-  const setModelMutation = useSetModel(sessionId);
-  const currentModel = agentState?.model;
+  const config = useAgentConfig(sessionId ?? null);
+  const models = config.models;
+  const currentModel = config.state?.model;
 
   useEffect(() => {
     if (visible) {
@@ -59,7 +53,7 @@ function MobileModelSheetComponent({
   };
 
   const handleSelect = (provider: string, modelId: string) => {
-    setModelMutation.mutate({ provider, modelId });
+    config.setModel({ provider, modelId });
     animateClose(() => {
       setSearch('');
       onClose();
@@ -68,15 +62,18 @@ function MobileModelSheetComponent({
 
   const providers = (() => {
     if (!models) return [];
-    const grouped = new Map<string, ModelInfo[]>();
+    const grouped = new Map<string, Array<{ id: string; name: string; provider: string; reasoning?: boolean }>>();
     const order: string[] = [];
     for (const m of models) {
-      if (!matchesModelSearch(search, m)) continue;
-      if (!grouped.has(m.provider)) {
-        grouped.set(m.provider, []);
-        order.push(m.provider);
+      const provider = m.provider ?? "unknown";
+      const name = m.name ?? m.id;
+      const searchable = { ...m, name, provider };
+      if (!matchesModelSearch(search, searchable)) continue;
+      if (!grouped.has(provider)) {
+        grouped.set(provider, []);
+        order.push(provider);
       }
-      grouped.get(m.provider)!.push(m);
+      grouped.get(provider)!.push({ ...m, name, provider });
     }
     return order.map((p) => ({ name: p, models: grouped.get(p)! }));
   })();

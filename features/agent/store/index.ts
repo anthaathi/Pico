@@ -564,6 +564,38 @@ function reduceStreamEvents(
         const lastMsg = { ...msgs[lastIdx] };
         msgs[lastIdx] = lastMsg;
 
+        if (piEvent.message) {
+          const msg = piEvent.message;
+          const content = Array.isArray(msg.content) ? msg.content : [];
+          lastMsg.text = content
+            .filter((c: any) => c.type === "text")
+            .map((c: any) => c.text ?? "")
+            .join("");
+          const thinking = content
+            .filter((c: any) => c.type === "thinking")
+            .map((c: any) => c.thinking ?? "")
+            .join("");
+          if (thinking) lastMsg.thinking = thinking;
+          const toolCalls: ToolCallInfo[] = content
+            .filter((c: any) => c.type === "toolCall")
+            .map((c: any) => ({
+              id: c.id,
+              name: c.name,
+              arguments:
+                typeof c.arguments === "string"
+                  ? c.arguments
+                  : JSON.stringify(c.arguments),
+              status: "streaming" as const,
+            }));
+          if (toolCalls.length > 0) lastMsg.toolCalls = toolCalls;
+          lastMsg.model = msg.model ?? lastMsg.model;
+          lastMsg.provider = msg.provider ?? lastMsg.provider;
+          lastMsg.api = msg.api ?? lastMsg.api;
+          lastMsg.responseId = msg.responseId ?? lastMsg.responseId;
+          lastMsg.usage = extractUsageInfo(msg) ?? lastMsg.usage;
+          break;
+        }
+
         switch (delta.type) {
           case "text_delta":
             lastMsg.text += delta.delta ?? "";
@@ -614,33 +646,17 @@ function reduceStreamEvents(
           }
           case "done":
             lastMsg.isStreaming = false;
-            lastMsg.stopReason =
-              delta.reason ?? piEvent.message?.stopReason;
-            lastMsg.provider =
-              piEvent.message?.provider ?? lastMsg.provider;
-            lastMsg.api = piEvent.message?.api ?? lastMsg.api;
-            lastMsg.responseId =
-              piEvent.message?.responseId ?? lastMsg.responseId;
-            lastMsg.usage =
-              extractUsageInfo(piEvent.message) ?? lastMsg.usage;
+            lastMsg.stopReason = delta.reason;
             break;
           case "error":
             lastMsg.isStreaming = false;
             lastMsg.stopReason =
-              delta.reason ?? piEvent.message?.stopReason ?? "error";
+              delta.reason ?? "error";
             lastMsg.errorMessage =
-              getAssistantErrorMessage(piEvent.message) ??
-              (typeof delta.reason === "string" &&
+              typeof delta.reason === "string" &&
               !["error", "aborted"].includes(delta.reason)
                 ? delta.reason
-                : undefined);
-            lastMsg.provider =
-              piEvent.message?.provider ?? lastMsg.provider;
-            lastMsg.api = piEvent.message?.api ?? lastMsg.api;
-            lastMsg.responseId =
-              piEvent.message?.responseId ?? lastMsg.responseId;
-            lastMsg.usage =
-              extractUsageInfo(piEvent.message) ?? lastMsg.usage;
+                : undefined;
             break;
         }
         break;

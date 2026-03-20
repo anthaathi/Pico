@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { Redirect, Slot, usePathname } from 'expo-router';
 
+import { PiClientProvider, type PiClientConfig } from '@pi-ui/client';
 import { AdaptiveNavigation } from '@/features/navigation/containers/adaptive-navigation';
 import { useAuthStore } from '@/features/auth/store';
 import { useServersStore } from '@/features/servers/store';
 import { useWorkspaceStore } from '@/features/workspace/store';
-import { useAgentStream } from '@/features/agent/hooks/use-agent-stream';
 
 export default function AppLayout() {
   const pathname = usePathname();
@@ -17,11 +17,25 @@ export default function AppLayout() {
   const hasToken = useAuthStore((s) => s.hasToken);
   const activateServer = useAuthStore((s) => s.activateServer);
   const fetchWorkspaces = useWorkspaceStore((s) => s.fetchWorkspaces);
+  const accessToken = useAuthStore((s) =>
+    s.activeServerId ? s.tokens[s.activeServerId]?.accessToken ?? '' : '',
+  );
+  const serverAddress = useServersStore((s) =>
+    activeServerId
+      ? s.servers.find((srv) => srv.id === activeServerId)?.address ?? ''
+      : '',
+  );
 
   const [status, setStatus] = useState<'loading' | 'ready' | 'no-server'>('loading');
   const isServerRoute = pathname === '/servers';
 
-  useAgentStream();
+  const piClientConfig = useMemo<PiClientConfig>(
+    () => ({
+      serverUrl: serverAddress,
+      accessToken,
+    }),
+    [serverAddress, accessToken],
+  );
 
   useEffect(() => {
     if (!serversLoaded || !authLoaded) return;
@@ -64,9 +78,15 @@ export default function AppLayout() {
     return <Redirect href="/servers" />;
   }
 
+  if (!serverAddress || !accessToken) {
+    return <Redirect href="/servers" />;
+  }
+
   return (
-    <AdaptiveNavigation>
-      <Slot />
-    </AdaptiveNavigation>
+    <PiClientProvider config={piClientConfig}>
+      <AdaptiveNavigation>
+        <Slot />
+      </AdaptiveNavigation>
+    </PiClientProvider>
   );
 }
