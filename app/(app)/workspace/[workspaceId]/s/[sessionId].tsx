@@ -143,8 +143,11 @@ export default function SessionScreen() {
     const hideEvent =
       Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
     const showSub = Keyboard.addListener(showEvent, (e) => {
+      const height = Platform.OS === 'ios'
+        ? e.endCoordinates.height - insets.bottom
+        : e.endCoordinates.height;
       Animated.spring(keyboardPadding, {
-        toValue: e.endCoordinates.height,
+        toValue: height,
         tension: 160,
         friction: 20,
         useNativeDriver: false,
@@ -162,7 +165,7 @@ export default function SessionScreen() {
       showSub.remove();
       hideSub.remove();
     };
-  }, [keyboardPadding]);
+  }, [keyboardPadding, insets.bottom]);
 
   const hasMessages = messages.length > 0;
   const isLoadingHistory = !!sessionId && !hasMessages;

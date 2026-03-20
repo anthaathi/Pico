@@ -10,7 +10,7 @@ use axum::response::IntoResponse;
 use axum::Json;
 use serde_json::{json, Value};
 
-use crate::app::AppState;
+use crate::server::state::AppState;
 use crate::models::agent::*;
 use crate::models::ApiResponse;
 use crate::routes::auth::{extract_token, require_auth, validate_access_token};

@@ -149,8 +149,11 @@ export default function ChatSessionScreen() {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
     const showSub = Keyboard.addListener(showEvent, (e) => {
+      const height = Platform.OS === 'ios'
+        ? e.endCoordinates.height - insets.bottom
+        : e.endCoordinates.height;
       Animated.spring(keyboardPadding, {
-        toValue: e.endCoordinates.height, tension: 160, friction: 20, useNativeDriver: false,
+        toValue: height, tension: 160, friction: 20, useNativeDriver: false,
       }).start();
     });
     const hideSub = Keyboard.addListener(hideEvent, () => {
@@ -159,7 +162,7 @@ export default function ChatSessionScreen() {
       }).start();
     });
     return () => { showSub.remove(); hideSub.remove(); };
-  }, [keyboardPadding]);
+  }, [keyboardPadding, insets.bottom]);
 
   return (
     <Animated.View

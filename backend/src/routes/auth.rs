@@ -2,7 +2,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use axum::Json;
 
-use crate::app::AppState;
+use crate::server::state::AppState;
 use crate::db::AuthSessionRecord;
 use crate::models::{
     ApiResponse, AuthTokensResponse, ErrorBody, LoginRequest, LogoutRequest, PairRequest,
@@ -15,6 +15,25 @@ fn auth_tokens_response(session: AuthSessionRecord) -> AuthTokensResponse {
         refresh_token: session.refresh_token,
         access_expires_at: session.access_expires_at,
         refresh_expires_at: session.refresh_expires_at,
+    }
+}
+
+fn create_pairing_session(
+    state: &AppState,
+) -> (StatusCode, Json<ApiResponse<AuthTokensResponse>>) {
+    match state.db.create_auth_session(
+        &state.config.auth.username,
+        state.config.auth.access_token_ttl_minutes,
+        state.config.auth.refresh_token_ttl_days,
+    ) {
+        Ok(session) => (
+            StatusCode::OK,
+            Json(ApiResponse::ok(auth_tokens_response(session))),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::err(format!("Session creation failed: {e}"))),
+        ),
     }
 }
 
@@ -220,20 +239,7 @@ pub async fn pair(
         Ok(true) => {
             state.pairing.mark_paired();
             state.pairing.invalidate_qr_id();
-            match state.db.create_auth_session(
-                &state.config.auth.username,
-                state.config.auth.access_token_ttl_minutes,
-                state.config.auth.refresh_token_ttl_days,
-            ) {
-                Ok(session) => (
-                    StatusCode::OK,
-                    Json(ApiResponse::ok(auth_tokens_response(session))),
-                ),
-                Err(e) => (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ApiResponse::err(format!("Session creation failed: {e}"))),
-                ),
-            }
+            create_pairing_session(&state)
         }
         Ok(false) => (
             StatusCode::REQUEST_TIMEOUT,

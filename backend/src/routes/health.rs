@@ -2,7 +2,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use axum::Json;
 
-use crate::app::AppState;
+use crate::server::state::AppState;
 use crate::models::{HealthResponse, VersionResponse};
 
 const APP_NAME: &str = env!("CARGO_PKG_NAME");

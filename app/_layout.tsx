@@ -105,6 +105,10 @@ export default function RootLayout() {
               options={{ headerShown: false, animation: "none" }}
             />
             <Stack.Screen
+              name="connect"
+              options={{ headerShown: false, animation: "none" }}
+            />
+            <Stack.Screen
               name="modal"
               options={{ presentation: "modal", title: "Modal" }}
             />

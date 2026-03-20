@@ -2,7 +2,7 @@ use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
 
-use crate::app::AppState;
+use crate::server::state::AppState;
 use crate::models::*;
 use crate::routes::auth::require_auth;
 use crate::services::git;

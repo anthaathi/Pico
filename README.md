@@ -132,6 +132,8 @@ yarn android      # run on Android
 yarn web          # run in browser
 ```
 
+For direct browser login links, the backend prints `http://localhost:8081/connect?...` in debug builds and uses the backend server port in release builds. Set `PI_UI_WEB_ORIGIN` to override the dev web origin if you run Expo web on a different host or port.
+
 ### Build the backend
 
 ```bash

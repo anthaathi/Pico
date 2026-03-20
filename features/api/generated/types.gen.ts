@@ -433,7 +433,7 @@ export type TouchAgentSessionRequest = {
 };
 
 export type TouchChatSessionRequest = {
-    session_file: string;
+    session_file?: string | null;
 };
 
 export type UpdateWorkspaceRequest = {

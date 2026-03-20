@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { X, Wifi, Check, AlertCircle } from "lucide-react-native";
 
-import { Colors, Fonts } from "@/constants/theme";
+import { Fonts } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import {
   parseConnectUrl,
@@ -34,7 +34,6 @@ interface QrScannerProps {
 
 export function QrScanner({ visible, onClose, onNeedNewWorkspace }: QrScannerProps) {
   const colorScheme = useColorScheme() ?? "light";
-  const colors = Colors[colorScheme];
   const isDark = colorScheme === "dark";
   const router = useRouter();
 
@@ -65,7 +64,12 @@ export function QrScanner({ visible, onClose, onNeedNewWorkspace }: QrScannerPro
 
   const doPair = async (params: ConnectParams, ip: string) => {
     const address = buildServerAddress(ip, params.port);
-    const serverId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const serverId =
+      params.serverId ??
+      Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const existingServer = useServersStore
+      .getState()
+      .servers.find((server) => server.id === serverId);
 
     setStep("pairing");
     setError(null);
@@ -80,10 +84,10 @@ export function QrScanner({ visible, onClose, onNeedNewWorkspace }: QrScannerPro
         onClose();
         await useServersStore.getState().addServer({
           id: serverId,
-          name: params.hostname || ip,
+          name: existingServer?.name || params.hostname || ip,
           address,
-          username: "",
-          password: "",
+          username: existingServer?.username ?? "",
+          password: existingServer?.password ?? "",
         });
         reset();
         // Fetch workspaces and navigate directly

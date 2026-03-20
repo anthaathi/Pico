@@ -4,7 +4,7 @@ use axum::Json;
 use serde::Deserialize;
 use utoipa::{IntoParams, ToSchema};
 
-use crate::app::AppState;
+use crate::server::state::AppState;
 use crate::models::ApiResponse;
 use crate::routes::auth::require_auth;
 use crate::services::agent::AgentSessionInfo;

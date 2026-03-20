@@ -3,7 +3,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
 use std::path::PathBuf;
 
-use crate::app::AppState;
+use crate::server::state::AppState;
 use crate::models::*;
 use crate::routes::auth::require_auth;
 

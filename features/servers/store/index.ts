@@ -62,7 +62,13 @@ export const useServersStore = create<ServersState>((set, get) => ({
 
   addServer: async (server) => {
     const newServer: Server = { ...server, id: server.id ?? generateId() };
-    const servers = [...get().servers, newServer];
+    const existingIndex = get().servers.findIndex((entry) => entry.id === newServer.id);
+    const servers =
+      existingIndex >= 0
+        ? get().servers.map((entry, index) =>
+            index === existingIndex ? newServer : entry,
+          )
+        : [...get().servers, newServer];
     set({ servers });
     await writeToStore(servers);
   },

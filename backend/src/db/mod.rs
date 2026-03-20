@@ -230,6 +230,17 @@ impl Database {
         Ok(())
     }
 
+    pub fn count_active_auth_sessions(&self) -> anyhow::Result<i64> {
+        let conn = self.conn.lock().unwrap();
+        let now = Utc::now().to_rfc3339();
+        let count = conn.query_row(
+            "SELECT COUNT(*) FROM auth_sessions WHERE refresh_expires_at > ?1",
+            params![now],
+            |row| row.get::<_, i64>(0),
+        )?;
+        Ok(count)
+    }
+
     pub fn log_operation(&self, operation: &str, status: &str, output: &str) -> anyhow::Result<i64> {
         let conn = self.conn.lock().unwrap();
         conn.execute(

@@ -17,7 +17,8 @@ import {
   Copy,
   Info,
 } from "lucide-react-native";
-import { useMarkdown, type useMarkdownHookOptions } from "react-native-marked";
+import type { useMarkdownHookOptions } from "react-native-marked";
+import { useStableMarkdown } from "../../hooks/use-stable-markdown";
 import Animated, {
   FadeInUp,
   useAnimatedStyle,
@@ -399,7 +400,7 @@ function AssistantMessageComponent({
     () => (isDark ? markedDarkOptions : markedLightOptions),
     [isDark],
   );
-  const markdownElements = useMarkdown(message.text, markdownOptions);
+  const markdownElements = useStableMarkdown(message.text, markdownOptions, message.isStreaming);
   const groupedToolCalls = useMemo(
     () => (effectiveToolCalls ? groupToolCalls(effectiveToolCalls) : []),
     [effectiveToolCalls],

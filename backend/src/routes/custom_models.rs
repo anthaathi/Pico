@@ -6,7 +6,7 @@ use serde_json::Value;
 use std::path::PathBuf;
 use utoipa::ToSchema;
 
-use crate::app::AppState;
+use crate::server::state::AppState;
 use crate::models::ApiResponse;
 use crate::routes::auth::require_auth;
 

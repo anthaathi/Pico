@@ -304,6 +304,8 @@ export function useAgentStream() {
       }
     }
 
+    const knownStreamSessionIds = new Set<string>();
+
     function processStreamMessage(rawData: string) {
       try {
         const payload: unknown = JSON.parse(rawData);
@@ -333,7 +335,9 @@ export function useAgentStream() {
           }
 
           if (eventType === "turn_end") {
-            handleSessionCompletion(streamEvent, workspaceId);
+            const isFirstTurn = !knownStreamSessionIds.has(sid);
+            knownStreamSessionIds.add(sid);
+            handleSessionCompletion(streamEvent, workspaceId, isFirstTurn);
           }
         }
       } catch {}
@@ -479,6 +483,7 @@ export function useAgentStream() {
     function handleSessionCompletion(
       streamEvent: StreamEvent,
       workspaceId: string | null,
+      isNewSession: boolean,
     ) {
       const stopReason =
         (streamEvent.data as Record<string, any> | undefined)?.message
@@ -488,9 +493,11 @@ export function useAgentStream() {
       }
 
       if (workspaceId) {
-        queryClient.invalidateQueries({
-          queryKey: ["sessions", workspaceId],
-        });
+        if (isNewSession) {
+          queryClient.invalidateQueries({
+            queryKey: ["sessions", workspaceId],
+          });
+        }
 
         if (!isViewingWorkspace(pathnameRef.current, workspaceId)) {
           useWorkspaceStore
@@ -502,9 +509,11 @@ export function useAgentStream() {
         return;
       }
 
-      queryClient.invalidateQueries({
-        predicate: (query) => query.queryKey[0] === "sessions",
-      });
+      if (isNewSession) {
+        queryClient.invalidateQueries({
+          predicate: (query) => query.queryKey[0] === "sessions",
+        });
+      }
     }
 
     function connect() {
