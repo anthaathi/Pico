@@ -1744,7 +1744,7 @@ export interface ToolCallRenderItem {
   calls: ToolCallInfo[];
 }
 
-const NEVER_GROUP = new Set(["bash", "read", "write", "edit"]);
+const NEVER_GROUP = new Set(["bash", "write", "edit"]);
 
 export function groupToolCalls(
   toolCalls: ToolCallInfo[],
