@@ -192,13 +192,15 @@ interface PromptInputProps {
     text: string,
     attachments: Attachment[],
     options?: { queueBehavior?: QueueBehavior },
-  ) => void;
+  ) => Promise<void> | void;
   isStreaming?: boolean;
   onAbort?: () => void;
   disabled?: boolean;
   sessionReady?: boolean;
   allowTypingWhileDisabled?: boolean;
   stackedAbove?: boolean;
+  errorMessage?: string | null;
+  onClearError?: () => void;
 }
 
 export function PromptInput({
@@ -210,6 +212,8 @@ export function PromptInput({
   sessionReady = true,
   allowTypingWhileDisabled = false,
   stackedAbove = false,
+  errorMessage,
+  onClearError,
 }: PromptInputProps) {
   const theme = usePromptTheme();
   const { isWideScreen } = useResponsiveLayout();
@@ -419,18 +423,27 @@ export function PromptInput({
     return () => document.removeEventListener("keydown", handler);
   }, [inputDisabled]);
 
-  const sendDraft = useCallback((queueBehavior?: QueueBehavior) => {
+  const sendDraft = useCallback(async (queueBehavior?: QueueBehavior) => {
     if (!hasDraft) return;
 
-    const nextText = trimmedText;
-    const nextAttachments = attachments;
+    const savedText = trimmedText;
+    const savedAttachments = [...attachments];
 
-    onSend?.(nextText, nextAttachments, { queueBehavior });
+    // Optimistically clear the input
     setText("");
     setAttachments([]);
     setShowCommands(false);
     textBeforeSpeechRef.current = "";
-  }, [attachments, hasDraft, onSend, trimmedText]);
+    onClearError?.();
+
+    try {
+      await onSend?.(savedText, savedAttachments, { queueBehavior });
+    } catch {
+      // Restore draft on failure so the user doesn't lose their message
+      setText(savedText);
+      setAttachments(savedAttachments);
+    }
+  }, [attachments, hasDraft, onClearError, onSend, trimmedText]);
 
   const handleSubmit = useCallback(() => {
     if (sendDisabled) return;
@@ -669,6 +682,26 @@ export function PromptInput({
           dropdownAnim={dropdownAnim}
           onSelect={handleSelectCommand}
         />
+      )}
+
+      {/* Send error */}
+      {!!errorMessage && (
+        <Pressable
+          onPress={onClearError}
+          style={[
+            styles.sendError,
+            { backgroundColor: theme.isDark ? "#3a1a1a" : "#FEE2E2" },
+          ]}
+        >
+          <Text
+            style={[
+              styles.sendErrorText,
+              { color: theme.isDark ? "#FCA5A5" : "#DC2626" },
+            ]}
+          >
+            {errorMessage}
+          </Text>
+        </Pressable>
       )}
 
       {/* Speech error */}
@@ -913,6 +946,16 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     width: "100%",
     overflow: "visible",
+  },
+  sendError: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginBottom: 6,
+  },
+  sendErrorText: {
+    fontSize: 12,
+    fontFamily: Fonts.sans,
   },
   speechError: {
     paddingHorizontal: 12,

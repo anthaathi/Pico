@@ -77,19 +77,23 @@ export default function ChatIndexScreen() {
 
       try {
         const sid = await ensureSession();
-        if (!sid) { setSending(false); return; }
+        if (!sid) { setSending(false); throw new Error('Failed to create chat session'); }
 
         await client.prompt(sid, text);
         selectSession(sid);
         invalidateChatSessions();
         router.replace({ pathname: '/chat/[sessionId]', params: { sessionId: sid } });
       } catch (e) {
-        setAlertMessage(e instanceof Error ? e.message : 'Failed to send prompt');
+        const message = e instanceof Error ? e.message : 'Failed to send prompt';
+        setAlertMessage(message);
         setSending(false);
+        throw e;
       }
     },
     [sending, ensureSession, client, selectSession, invalidateChatSessions, router],
   );
+
+  const clearAlert = useCallback(() => setAlertMessage(null), []);
 
   const editorBg = isDark ? '#151515' : '#FAFAFA';
   const keyboardPadding = useRef(new Animated.Value(0)).current;
@@ -118,7 +122,7 @@ export default function ChatIndexScreen() {
         ) : (
           <WorkspaceHero />
         )}
-        <PromptInput sessionId={preSessionId} onSend={handleSend} disabled={sending} sessionReady={!!preSessionId} />
+        <PromptInput sessionId={preSessionId} onSend={handleSend} disabled={sending} sessionReady={!!preSessionId} errorMessage={alertMessage} onClearError={clearAlert} />
       </View>
     </Animated.View>
   );

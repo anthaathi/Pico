@@ -93,14 +93,21 @@ export function WorkspaceSheet({ visible, onClose }: WorkspaceSheetProps) {
     [],
   );
 
+  const getLastSession = useWorkspaceStore((s) => s.getLastSession);
+
   const handleWorkspacePress = useCallback(
     (id: string, index: number) => {
       selectWorkspace(id);
-      router.replace(`/workspace/${id}`);
+      const lastSession = getLastSession(id);
+      if (lastSession) {
+        router.replace(`/workspace/${id}/s/${lastSession}`);
+      } else {
+        router.replace(`/workspace/${id}`);
+      }
       pagerRef.current?.setPage(index);
       scrollStripToIndex(index);
     },
-    [selectWorkspace, router, scrollStripToIndex],
+    [selectWorkspace, getLastSession, router, scrollStripToIndex],
   );
 
   const handlePageSelected = useCallback(
@@ -108,11 +115,16 @@ export function WorkspaceSheet({ visible, onClose }: WorkspaceSheetProps) {
       const ws = workspaces[index];
       if (ws && ws.id !== selectedWorkspaceId) {
         selectWorkspace(ws.id);
-        router.replace(`/workspace/${ws.id}`);
+        const lastSession = getLastSession(ws.id);
+        if (lastSession) {
+          router.replace(`/workspace/${ws.id}/s/${lastSession}`);
+        } else {
+          router.replace(`/workspace/${ws.id}`);
+        }
         scrollStripToIndex(index);
       }
     },
-    [workspaces, selectedWorkspaceId, selectWorkspace, router, scrollStripToIndex],
+    [workspaces, selectedWorkspaceId, selectWorkspace, getLastSession, router, scrollStripToIndex],
   );
 
   const handleAddWorkspace = useCallback(() => {

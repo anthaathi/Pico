@@ -50,7 +50,7 @@ export default function ChatSessionScreen() {
   }, [sessionId, selectSession, registerSessionWorkspace]);
 
   const handleSend = useCallback(
-    (text: string, _attachments: unknown[], options?: { queueBehavior?: 'steer' | 'followUp' }) => {
+    async (text: string, _attachments: unknown[], options?: { queueBehavior?: 'steer' | 'followUp' }) => {
       if (!sessionId || inputBlocked) return;
       setAlertMessage(null);
 
@@ -62,11 +62,13 @@ export default function ChatSessionScreen() {
           ? session.followUp
           : session.prompt;
 
-      sendFn(text)
-        .then(() => { if (isFirst) setTimeout(() => invalidateChatSessions(), 2000); })
-        .catch((error) => {
-          setAlertMessage(error instanceof Error ? error.message : 'Failed to send prompt');
-        });
+      try {
+        await sendFn(text);
+        if (isFirst) setTimeout(() => invalidateChatSessions(), 2000);
+      } catch (error) {
+        setAlertMessage(error instanceof Error ? error.message : 'Failed to send prompt');
+        throw error;
+      }
     },
     [sessionId, inputBlocked, session, invalidateChatSessions],
   );
@@ -78,6 +80,8 @@ export default function ChatSessionScreen() {
       setAlertMessage(error instanceof Error ? error.message : 'Failed to abort');
     });
   }, [sessionId, session]);
+
+  const clearAlert = useCallback(() => setAlertMessage(null), []);
 
   const editorBg = isDark ? '#151515' : '#FAFAFA';
   const hasMessages = session.messages.length > 0;
@@ -125,6 +129,8 @@ export default function ChatSessionScreen() {
           disabled={inputBlocked || !session.isReady || !!session.pendingExtensionUiRequest}
           allowTypingWhileDisabled={!inputBlocked}
           stackedAbove={!!session.pendingExtensionUiRequest}
+          errorMessage={alertMessage}
+          onClearError={clearAlert}
         />
       </View>
     </Animated.View>

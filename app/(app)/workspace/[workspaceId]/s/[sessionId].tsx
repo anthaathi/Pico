@@ -69,7 +69,7 @@ export default function SessionScreen() {
     connection.status === "reconnecting" || connection.status === "disconnected";
 
   const handleSend = useCallback(
-    (
+    async (
       text: string,
       _attachments: unknown[],
       options?: { queueBehavior?: "steer" | "followUp" },
@@ -85,11 +85,14 @@ export default function SessionScreen() {
           ? agentSession.followUp
           : agentSession.prompt;
 
-      sendFn(text).catch((error) => {
+      try {
+        await sendFn(text);
+      } catch (error) {
         setAlertMessage(
           error instanceof Error ? error.message : "Failed to send prompt",
         );
-      });
+        throw error;
+      }
     },
     [inputBlockedByConnection, sessionId, agentSession],
   );
@@ -103,6 +106,8 @@ export default function SessionScreen() {
       );
     });
   }, [sessionId, agentSession]);
+
+  const clearAlert = useCallback(() => setAlertMessage(null), []);
 
   const isDark = colorScheme === "dark";
   const editorBg = isDark ? "#151515" : "#FAFAFA";
@@ -186,6 +191,8 @@ export default function SessionScreen() {
             }
             allowTypingWhileDisabled={!inputBlockedByConnection}
             stackedAbove={!!agentSession.pendingExtensionUiRequest}
+            errorMessage={alertMessage}
+            onClearError={clearAlert}
           />
         </View>
 

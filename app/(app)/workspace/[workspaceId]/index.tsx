@@ -98,14 +98,16 @@ export default function WorkspaceScreen() {
         await client.prompt(sessionId, text, { workspaceId });
         router.replace(`/workspace/${workspaceId}/s/${sessionId}`);
       } catch (e) {
-        setAlertMessage(
-          e instanceof Error ? e.message : "Failed to create session or send prompt",
-        );
+        const message = e instanceof Error ? e.message : "Failed to create session or send prompt";
+        setAlertMessage(message);
         setSending(false);
+        throw e;
       }
     },
     [workspaceId, sending, ensureSession, client, router],
   );
+
+  const clearAlert = useCallback(() => setAlertMessage(null), []);
 
   const isDark = colorScheme === "dark";
   const editorBg = isDark ? "#151515" : "#FAFAFA";
@@ -158,6 +160,8 @@ export default function WorkspaceScreen() {
             onSend={handleSend}
             disabled={sending}
             sessionReady={!!preSessionId}
+            errorMessage={alertMessage}
+            onClearError={clearAlert}
           />
         </View>
         {isWideScreen && (

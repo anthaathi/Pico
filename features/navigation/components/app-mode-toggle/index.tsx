@@ -61,15 +61,21 @@ export function AppModeToggle() {
     (mode: AppMode) => {
       if (mode === visualMode) return;
 
-      const workspaceId = useWorkspaceStore.getState().selectedWorkspaceId;
+      const workspaceState = useWorkspaceStore.getState();
+      const workspaceId = workspaceState.selectedWorkspaceId;
       const lastChatSession = useChatStore.getState().lastSessionId;
+      const lastWorkspaceSession = workspaceId
+        ? workspaceState.lastSessionByWorkspace[workspaceId] ?? null
+        : null;
       const target =
         mode === 'chat'
           ? lastChatSession
             ? { pathname: '/chat/[sessionId]' as const, params: { sessionId: lastChatSession } }
             : '/chat'
           : workspaceId
-            ? { pathname: '/workspace/[workspaceId]' as const, params: { workspaceId } }
+            ? lastWorkspaceSession
+              ? { pathname: '/workspace/[workspaceId]/s/[sessionId]' as const, params: { workspaceId, sessionId: lastWorkspaceSession } }
+              : { pathname: '/workspace/[workspaceId]' as const, params: { workspaceId } }
             : null;
 
       if (!target) return;
