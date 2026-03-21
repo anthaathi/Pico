@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.2.0](https://github.com/anthaathi/pi-companion/compare/v1.1.0...v1.2.0) (2026-03-21)
+
+
+### Features
+
+* add one-line curl install script for pi-server ([c547da4](https://github.com/anthaathi/pi-companion/commit/c547da4c5826b93a03786d908f1aae8131d432fd))
+* install to ~/.pi/ui and offer background service setup ([1e24e2a](https://github.com/anthaathi/pi-companion/commit/1e24e2a21d4893737209c3ce06e767d5ebdaa3f9))
+* rewrite install script as production-quality installer ([19fb44a](https://github.com/anthaathi/pi-companion/commit/19fb44ae7d55c217d82e9cf82693ec21fb12b202))
+
+
+### Bug Fixes
+
+* handle non-interactive TTY in installer ([25ee9c6](https://github.com/anthaathi/pi-companion/commit/25ee9c6cc8be40118ca79f9c98854db02a85dbab))
+* turn duration calculation and read tool call streaming performance ([a4b52ba](https://github.com/anthaathi/pi-companion/commit/a4b52baac8f7a2067e2d87fb75402ca3bd4405ef))
+
 ## [1.1.0](https://github.com/anthaathi/pi-companion/compare/v1.0.6...v1.1.0) (2026-03-20)
 
 
