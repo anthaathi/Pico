@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/anthaathi/pi-companion/compare/v1.3.0...v1.3.1) (2026-03-21)
+
+
+### Bug Fixes
+
+* add 3-retry logic to agent config loading with error state in toolbar ([01443c9](https://github.com/anthaathi/pi-companion/commit/01443c9081fbbac74759b19d36133f10940bbf5d))
+
 ## [1.3.0](https://github.com/anthaathi/pi-companion/compare/v1.2.0...v1.3.0) (2026-03-21)
 
 
