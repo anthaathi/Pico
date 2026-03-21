@@ -207,6 +207,8 @@ pub struct GitStatusResponse {
     pub untracked: Vec<String>,
     pub ahead: u32,
     pub behind: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remote_url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]

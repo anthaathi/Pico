@@ -116,6 +116,10 @@ pub fn status(cwd: &str) -> Result<GitStatusResponse, String> {
 
     let is_clean = staged.is_empty() && unstaged.is_empty() && untracked.is_empty();
 
+    let remote_url = git(cwd, &["remote", "get-url", "origin"])
+        .ok()
+        .filter(|u| !u.is_empty());
+
     Ok(GitStatusResponse {
         branch,
         is_clean,
@@ -124,6 +128,7 @@ pub fn status(cwd: &str) -> Result<GitStatusResponse, String> {
         untracked,
         ahead,
         behind,
+        remote_url,
     })
 }
 

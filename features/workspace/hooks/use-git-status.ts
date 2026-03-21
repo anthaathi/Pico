@@ -88,6 +88,7 @@ type GitStatusData = {
   untracked: Array<string>;
   ahead: number;
   behind: number;
+  remote_url?: string | null;
 };
 
 export function useGitStatus(cwd: string | null) {

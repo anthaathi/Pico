@@ -1,5 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { GitBranch, PanelLeft, SquarePen } from 'lucide-react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { GitBranch, PanelLeft, SquarePen, ExternalLink } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 
 import { Colors, Fonts } from '@/constants/theme';
@@ -7,6 +7,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAppMode } from '@/hooks/use-app-mode';
 import { useWorkspaceStore } from '@/features/workspace/store';
 import { useChatStore } from '@/features/chat/store';
+import { useGitStatus } from '@/features/workspace/hooks/use-git-status';
+import { gitRemoteToBrowserUrl } from '@/features/workspace/utils/git-remote-url';
 
 interface MobileHeaderBarProps {
   onWorkspacePress: () => void;
@@ -25,6 +27,10 @@ export function MobileHeaderBar({ onWorkspacePress, onGitPress, onChatSessionsPr
   const workspace = useWorkspaceStore((s) =>
     s.workspaces.find((w) => w.id === s.selectedWorkspaceId)
   );
+
+  const cwd = appMode === 'code' ? (workspace?.path ?? null) : null;
+  const { data: gitData } = useGitStatus(cwd);
+  const remoteInfo = gitRemoteToBrowserUrl(gitData?.remote_url);
 
   const textPrimary = isDark ? '#fefdfd' : colors.text;
   const borderColor = isDark ? '#323131' : 'rgba(0,0,0,0.08)';
@@ -84,6 +90,20 @@ export function MobileHeaderBar({ onWorkspacePress, onGitPress, onChatSessionsPr
       </View>
 
       <View style={styles.headerActions}>
+        {appMode === 'code' && remoteInfo && (
+          <Pressable
+            onPress={() => Linking.openURL(remoteInfo.url)}
+            style={({ pressed }) => [
+              styles.iconButton,
+              { backgroundColor: buttonBg },
+              pressed && { opacity: 0.7 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={`Open in ${remoteInfo.label}`}
+          >
+            <ExternalLink size={16} color={textPrimary} strokeWidth={1.8} />
+          </Pressable>
+        )}
         {appMode === 'code' && (
           <Pressable
             onPress={onGitPress}
