@@ -4,7 +4,21 @@ A mobile companion app for [pi-coding-agent](https://github.com/mariozechner/pi-
 
 ## Quick Start
 
-### 1. Download the server binary
+### 1. Install the server
+
+**One-line install (Linux / macOS):**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/anthaathi/pi-companion/main/install.sh | bash
+```
+
+This automatically detects your OS and architecture, downloads the latest release, and installs `pi-server` to `~/.pi-server/bin`. Add it to your PATH by following the instructions printed after install, or run it directly:
+
+```bash
+~/.pi-server/bin/pi-server
+```
+
+**Manual download:**
 
 Grab the latest release for your platform from [Releases](https://github.com/anthaathi/pi-companion/releases):
 
