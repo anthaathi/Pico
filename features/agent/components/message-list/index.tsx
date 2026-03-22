@@ -543,6 +543,7 @@ export function MessageList({ sessionId }: { sessionId: string }) {
   const seenMessageIdsRef = useRef<Set<string>>(new Set());
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showScrollButtonRef = useRef(false);
+  const contentDirtyRef = useRef(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
 
   // Turn-complete haptic + banner via agent_end event
@@ -642,8 +643,16 @@ export function MessageList({ sessionId }: { sessionId: string }) {
     [setScrollButtonVisible],
   );
 
+  // Mark content dirty when messages change so auto-scroll only fires for
+  // real data updates, not layout-only changes (e.g. keyboard appearing).
+  useEffect(() => {
+    contentDirtyRef.current = true;
+  }, [messages]);
+
   const handleContentSizeChange = useCallback(() => {
     if (!isNearBottomRef.current) return;
+    if (!contentDirtyRef.current) return;
+    contentDirtyRef.current = false;
 
     setScrollButtonVisible(false);
     if (scrollTimerRef.current) return;
@@ -658,6 +667,7 @@ export function MessageList({ sessionId }: { sessionId: string }) {
     hasHydratedRef.current = false;
     seenMessageIdsRef.current = new Set();
     isNearBottomRef.current = true;
+    contentDirtyRef.current = false;
     setScrollButtonVisible(false);
 
     if (scrollTimerRef.current) {
