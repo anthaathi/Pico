@@ -378,20 +378,19 @@ export function PromptInput({
     queryKey: ["slash-commands", sessionId],
     queryFn: async () => {
       if (!sessionId) return [];
-      try {
-        const result = await piClient.api.getCommands(sessionId);
-        return (
-          result.commands?.map((c) => ({
-            name: c.name,
-            description: c.description ?? "",
-          })) ?? []
-        );
-      } catch {
-        return [];
-      }
+      const result = await piClient.api.getCommands(sessionId);
+      return (
+        result.commands?.map((c) => ({
+          name: c.name,
+          description: c.description ?? "",
+        })) ?? []
+      );
     },
     enabled: !!sessionId && sessionReady,
-    staleTime: 60_000,
+    staleTime: 30_000,
+    retry: 2,
+    retryDelay: 1000,
+    refetchOnMount: true,
   });
   const slashCommands = useMemo(() => {
     const backend = backendCommands ?? EMPTY_SLASH_COMMANDS;
