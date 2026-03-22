@@ -175,12 +175,6 @@ const skeletonStyles = StyleSheet.create({
   },
 });
 
-function formatTokenCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}K`;
-  return String(n);
-}
-
 function ContextUsageRing({
   used,
   total,
@@ -191,22 +185,13 @@ function ContextUsageRing({
   isDark: boolean;
 }) {
   const ratio = Math.min(used / total, 1);
-  const size = 28;
-  const stroke = 2.5;
+  const size = 18;
+  const stroke = 1.5;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const filled = circumference * ratio;
-  const trackColor = isDark ? "#333" : "#E0E0E0";
-  const fillColor =
-    ratio > 0.9
-      ? "#EF4444"
-      : ratio > 0.7
-        ? "#F59E0B"
-        : isDark
-          ? "#66BB6A"
-          : "#43A047";
-  const textColor = isDark ? "#999" : "#888";
-  const label = formatTokenCount(used);
+  const trackColor = isDark ? "#2A2A2A" : "#E5E5E5";
+  const fillColor = isDark ? "#555" : "#AAA";
 
   return (
     <View style={contextStyles.wrap}>
@@ -233,22 +218,14 @@ function ContextUsageRing({
           />
         )}
       </Svg>
-      <Text style={[contextStyles.label, { color: textColor }]}>{label}</Text>
     </View>
   );
 }
 
 const contextStyles = StyleSheet.create({
   wrap: {
-    alignItems: "center",
     justifyContent: "center",
-    marginRight: 8,
-    gap: 1,
-  },
-  label: {
-    fontSize: 8,
-    fontFamily: Fonts.sans,
-    textAlign: "center",
+    marginRight: 6,
   },
 });
 
