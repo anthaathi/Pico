@@ -347,14 +347,23 @@ export function PromptInput({
   const agentConfig = useAgentConfig(sessionReady ? (sessionId ?? null) : null);
 
   // Context usage: find last assistant message with usage info
+  // Context usage: total tokens = input + cacheRead + cacheWrite + output
+  // input only counts non-cached tokens, so we must include cache hits too
   const contextUsage = useMemo(() => {
     const contextWindow = agentConfig.state?.model?.contextWindow;
     if (!contextWindow) return null;
-    const msgs = agentSession.messages as { role: string; usage?: { input?: number; output?: number } }[];
+    const msgs = agentSession.messages as {
+      role: string;
+      usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; totalTokens?: number };
+    }[];
     for (let i = msgs.length - 1; i >= 0; i--) {
       const msg = msgs[i];
-      if (msg.role === "assistant" && msg.usage?.input) {
-        const used = (msg.usage.input ?? 0) + (msg.usage.output ?? 0);
+      if (msg.role === "assistant" && msg.usage) {
+        const u = msg.usage;
+        // totalTokens is the most accurate if available
+        const used = u.totalTokens
+          ?? ((u.input ?? 0) + (u.output ?? 0) + (u.cacheRead ?? 0) + (u.cacheWrite ?? 0));
+        if (used <= 0) continue;
         return { used, total: contextWindow };
       }
     }
