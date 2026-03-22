@@ -13,7 +13,6 @@ import {
   View,
 } from "react-native";
 import { Plus, ArrowUp, Mic, Square } from "lucide-react-native";
-import Svg, { Circle as SvgCircle } from "react-native-svg";
 import * as DocumentPicker from "expo-document-picker";
 import { useQuery } from "@tanstack/react-query";
 
@@ -23,7 +22,6 @@ import { useAgentSession, useAgentConfig, usePiClient } from "@pi-ui/client";
 import { useResponsiveLayout } from "@/features/navigation/hooks/use-responsive-layout";
 import { useSpeechRecognition } from "@/features/speech/hooks/use-speech-recognition";
 import { useSpeechSettingsStore } from "@/features/speech/store";
-
 
 import {
   SlashCommand,
@@ -35,262 +33,21 @@ import { SlashCommandDropdown } from "./slash-command-dropdown";
 import { AttachmentChips } from "./attachment-chips";
 import {
   Toolbar,
-  TOOLBAR_ANDROID_MARGIN_TOP,
-  TOOLBAR_BORDER_WIDTH,
-  TOOLBAR_CONTROL_HEIGHT,
-  TOOLBAR_CORNER_RADIUS,
   TOOLBAR_HORIZONTAL_MARGIN,
-  TOOLBAR_VERTICAL_PADDING,
   TOOLBAR_WRAP_OFFSET,
 } from "./toolbar";
 import { MobileModelSheet } from "./mobile-model-sheet";
 import { MobileEffortSheet } from "./mobile-effort-sheet";
+import { WaveformBars } from "./waveform-bars";
+import { ToolbarSkeleton } from "./toolbar-skeleton";
+import { ContextUsageRing } from "./context-usage-ring";
 
-const BAR_COUNT = 5;
-const BAR_SCALES = [0.6, 0.85, 1, 0.85, 0.6];
 const EMPTY_SLASH_COMMANDS: SlashCommand[] = [];
 const BUILTIN_COMMANDS: SlashCommand[] = [
   { name: "chat", description: "Switch to chat mode" },
   { name: "plan", description: "Switch to plan mode" },
   { name: "compact", description: "Compact conversation history" },
 ];
-
-function WaveformBars({ audioLevel }: { audioLevel: number }) {
-  const anims = useRef(
-    Array.from({ length: BAR_COUNT }, () => new Animated.Value(0)),
-  ).current;
-
-  useEffect(() => {
-    anims.forEach((anim, i) => {
-      const scale = BAR_SCALES[i];
-      const target = Math.max(0.15, audioLevel * scale);
-      Animated.timing(anim, {
-        toValue: target,
-        duration: 80,
-        useNativeDriver: false,
-      }).start();
-    });
-  }, [anims, audioLevel]);
-
-  return (
-    <View style={waveStyles.container}>
-      {anims.map((anim, i) => (
-        <Animated.View
-          key={i}
-          style={[
-            waveStyles.bar,
-            {
-              backgroundColor: "#EF4444",
-              height: anim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [3, 18],
-              }),
-            },
-          ]}
-        />
-      ))}
-    </View>
-  );
-}
-
-const waveStyles = StyleSheet.create({
-  container: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-    height: 18,
-  },
-  bar: {
-    width: 3,
-    borderRadius: 1.5,
-  },
-});
-
-function ToolbarSkeleton({ isDark }: { isDark: boolean }) {
-  const opacity = useRef(new Animated.Value(0.4)).current;
-
-  useEffect(() => {
-    const animation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacity, {
-          toValue: 0.4,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    animation.start();
-    return () => animation.stop();
-  }, [opacity]);
-
-  const fill = isDark ? "#2A2A28" : "#E2E2DF";
-  const bg = isDark ? "#1a1a1a" : "#F6F6F6";
-  const border = isDark ? "#3b3a39" : "rgba(0,0,0,0.12)";
-
-  return (
-    <View style={skeletonStyles.wrap}>
-      <View style={[skeletonStyles.toolbar, { backgroundColor: bg, borderColor: border }]}>
-        <Animated.View style={[skeletonStyles.track, { opacity }]}>
-          <View style={[skeletonStyles.pill, skeletonStyles.pillWide, { backgroundColor: fill }]} />
-          <View style={[skeletonStyles.pill, skeletonStyles.pillNarrow, { backgroundColor: fill }]} />
-        </Animated.View>
-      </View>
-    </View>
-  );
-}
-
-const skeletonStyles = StyleSheet.create({
-  wrap: {
-    marginTop: -TOOLBAR_WRAP_OFFSET,
-    paddingTop: TOOLBAR_WRAP_OFFSET,
-    marginHorizontal: TOOLBAR_HORIZONTAL_MARGIN,
-  },
-  toolbar: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 4,
-    paddingVertical: TOOLBAR_VERTICAL_PADDING,
-    borderWidth: TOOLBAR_BORDER_WIDTH,
-    borderTopWidth: 0,
-    borderBottomLeftRadius: TOOLBAR_CORNER_RADIUS,
-    borderBottomRightRadius: TOOLBAR_CORNER_RADIUS,
-    marginTop: TOOLBAR_ANDROID_MARGIN_TOP,
-  },
-  track: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 4,
-  },
-  pill: {
-    height: TOOLBAR_CONTROL_HEIGHT,
-    borderRadius: 6,
-  },
-  pillWide: {
-    width: 148,
-  },
-  pillNarrow: {
-    width: 92,
-  },
-});
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}k`;
-  return String(n);
-}
-
-function ContextUsageRing({
-  used,
-  total,
-  isDark,
-}: {
-  used: number;
-  total: number;
-  isDark: boolean;
-}) {
-  const [showTooltip, setShowTooltip] = useState(false);
-  const ratio = Math.min(used / total, 1);
-  const size = 20;
-  const stroke = 3;
-  const radius = (size - stroke) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const filled = circumference * ratio;
-  const trackColor = isDark ? "#2A2A2A" : "#E5E5E5";
-  const fillColor = isDark ? "#555" : "#AAA";
-  const free = Math.max(total - used, 0);
-  const pct = Math.round(ratio * 100);
-
-  return (
-    <View style={contextStyles.wrap}>
-      <Pressable onPress={() => setShowTooltip((v) => !v)}>
-        <Svg width={size} height={size}>
-          <SvgCircle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            stroke={trackColor}
-            strokeWidth={stroke}
-            fill="none"
-          />
-          {ratio > 0 && (
-            <SvgCircle
-              cx={size / 2}
-              cy={size / 2}
-              r={radius}
-              stroke={fillColor}
-              strokeWidth={stroke}
-              fill="none"
-              strokeDasharray={`${filled} ${circumference - filled}`}
-              strokeDashoffset={circumference * 0.25}
-              strokeLinecap="round"
-            />
-          )}
-        </Svg>
-      </Pressable>
-      {showTooltip && (
-        <Pressable
-          style={[
-            contextStyles.tooltip,
-            { backgroundColor: isDark ? "#2A2A2A" : "#FFFFFF", borderColor: isDark ? "#3A3A3A" : "#E0E0E0" },
-          ]}
-          onPress={() => setShowTooltip(false)}
-        >
-          <Text style={[contextStyles.tooltipTitle, { color: isDark ? "#CCC" : "#333" }]}>
-            Context · {pct}%
-          </Text>
-          <Text style={[contextStyles.tooltipRow, { color: isDark ? "#999" : "#666" }]}>
-            Used {formatTokens(used)} of {formatTokens(total)}
-          </Text>
-          <Text style={[contextStyles.tooltipRow, { color: isDark ? "#999" : "#666" }]}>
-            Free {formatTokens(free)}
-          </Text>
-        </Pressable>
-      )}
-    </View>
-  );
-}
-
-const contextStyles = StyleSheet.create({
-  wrap: {
-    justifyContent: "center",
-    alignSelf: "center",
-    marginRight: 6,
-    height: 36,
-    alignItems: "center",
-  },
-  tooltip: {
-    position: "absolute",
-    bottom: 40,
-    right: -8,
-    borderRadius: 8,
-    borderWidth: 0.633,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    minWidth: 150,
-    gap: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  tooltipTitle: {
-    fontSize: 12,
-    fontFamily: Fonts.sansSemiBold,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-  tooltipRow: {
-    fontSize: 11,
-    fontFamily: Fonts.sans,
-  },
-});
 
 type PromptKeyPressEventData = TextInputKeyPressEventData & {
   shiftKey?: boolean;
@@ -346,14 +103,7 @@ export function PromptInput({
   const streamedMode = agentSession.mode;
   const agentConfig = useAgentConfig(sessionReady ? (sessionId ?? null) : null);
 
-  // Context usage: find last assistant message with usage info
-  // Context usage from last assistant message.
-  // Per the RPC docs, usage fields are additive:
-  //   input     = non-cached input tokens
-  //   cacheRead = tokens served from prompt cache
-  //   cacheWrite = tokens newly written to prompt cache
-  //   output    = generated output tokens
-  // Total context window consumed = input + cacheRead + cacheWrite + output
+  // Context usage: input + output + cacheRead + cacheWrite against context window
   const contextUsage = useMemo(() => {
     const contextWindow = agentConfig.state?.model?.contextWindow;
     if (!contextWindow) return null;
@@ -399,12 +149,10 @@ export function PromptInput({
     return [...backend, ...builtins];
   }, [backendCommands]);
 
-  // Keyboard visibility (mobile)
+  // --- UI state ---
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [hideBottomForKeyboard, setHideBottomForKeyboard] = useState(false);
-  const [mobileSheet, setMobileSheet] = useState<null | "model" | "effort">(
-    null,
-  );
+  const [mobileSheet, setMobileSheet] = useState<null | "model" | "effort">(null);
   const [toolbarPopoverOpen, setToolbarPopoverOpen] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [entryDone, setEntryDone] = useState(false);
@@ -423,12 +171,11 @@ export function PromptInput({
     setMobileSheet(null);
   }, []);
 
+  // --- Keyboard ---
   useEffect(() => {
     if (Platform.OS === "web") return;
-    const showEvent =
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent =
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
     const showSub = Keyboard.addListener(showEvent, (e) => {
       const duration = (e as any).duration ?? 250;
       LayoutAnimation.configureNext(
@@ -445,20 +192,16 @@ export function PromptInput({
       setKeyboardVisible(false);
       setHideBottomForKeyboard(false);
     });
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
+    return () => { showSub.remove(); hideSub.remove(); };
   }, []);
 
-  // Load speech settings
+  // --- Speech ---
   const speechLoaded = useSpeechSettingsStore((s) => s.loaded);
   const loadSpeechSettings = useSpeechSettingsStore((s) => s.load);
   useEffect(() => {
     if (!speechLoaded) loadSpeechSettings();
   }, [speechLoaded, loadSpeechSettings]);
 
-  // --- State ---
   const [text, setText] = useState("");
   const [showCommands, setShowCommands] = useState(false);
   const [filteredCommands, setFilteredCommands] = useState<SlashCommand[]>([]);
@@ -470,14 +213,9 @@ export function PromptInput({
   const showAbortButton = !!isStreaming && !hasDraft;
   const showQueueActions = !!isStreaming && hasDraft;
 
-  // --- Speech ---
   const textBeforeSpeechRef = useRef("");
   const handleSpeechInterim = useCallback((interim: string) => {
-    setText(
-      textBeforeSpeechRef.current +
-        (textBeforeSpeechRef.current ? " " : "") +
-        interim,
-    );
+    setText(textBeforeSpeechRef.current + (textBeforeSpeechRef.current ? " " : "") + interim);
   }, []);
   const handleSpeechFinal = useCallback((final: string) => {
     const base = textBeforeSpeechRef.current;
@@ -486,31 +224,20 @@ export function PromptInput({
     textBeforeSpeechRef.current = newText;
   }, []);
   const {
-    isListening,
-    start: startListening,
-    stop: stopListening,
-    error: speechError,
-    clearError: clearSpeechError,
-    audioLevel,
+    isListening, start: startListening, stop: stopListening,
+    error: speechError, clearError: clearSpeechError, audioLevel,
   } = useSpeechRecognition(handleSpeechInterim, handleSpeechFinal);
 
   const handleMicPress = useCallback(() => {
     if (inputDisabled) return;
-    if (isListening) {
-      stopListening();
-    } else {
-      textBeforeSpeechRef.current = text;
-      startListening();
-    }
+    if (isListening) stopListening();
+    else { textBeforeSpeechRef.current = text; startListening(); }
   }, [inputDisabled, isListening, text, startListening, stopListening]);
 
   // --- Auto-grow ---
   const MIN_LINES = 2;
   const MAX_LINES = 6;
-  const lineCount = Math.min(
-    Math.max(text.split("\n").length, MIN_LINES),
-    MAX_LINES,
-  );
+  const lineCount = Math.min(Math.max(text.split("\n").length, MIN_LINES), MAX_LINES);
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -524,43 +251,19 @@ export function PromptInput({
 
   // --- Animations ---
   const dropdownAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(
-    new Animated.Value(shouldAnimateEntry ? 20 : 0),
-  ).current;
-  const fadeAnim = useRef(
-    new Animated.Value(shouldAnimateEntry ? 0 : 1),
-  ).current;
+  const slideAnim = useRef(new Animated.Value(shouldAnimateEntry ? 20 : 0)).current;
+  const fadeAnim = useRef(new Animated.Value(shouldAnimateEntry ? 0 : 1)).current;
 
   useEffect(() => {
-    if (!shouldAnimateEntry) {
-      setEntryDone(true);
-      return;
-    }
-
+    if (!shouldAnimateEntry) { setEntryDone(true); return; }
     Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 350,
-        delay: 150,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 120,
-        friction: 14,
-        delay: 150,
-        useNativeDriver: true,
-      }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 350, delay: 150, useNativeDriver: true }),
+      Animated.spring(slideAnim, { toValue: 0, tension: 120, friction: 14, delay: 150, useNativeDriver: true }),
     ]).start(() => setEntryDone(true));
   }, [fadeAnim, shouldAnimateEntry, slideAnim]);
 
   useEffect(() => {
-    Animated.spring(dropdownAnim, {
-      toValue: showCommands ? 1 : 0,
-      tension: 300,
-      friction: 26,
-      useNativeDriver: true,
-    }).start();
+    Animated.spring(dropdownAnim, { toValue: showCommands ? 1 : 0, tension: 300, friction: 26, useNativeDriver: true }).start();
   }, [dropdownAnim, showCommands]);
 
   useEffect(() => {
@@ -577,23 +280,17 @@ export function PromptInput({
     return () => document.removeEventListener("keydown", handler);
   }, [inputDisabled]);
 
+  // --- Send / abort ---
   const sendDraft = useCallback(async (queueBehavior?: QueueBehavior) => {
     if (!hasDraft) return;
-
     const savedText = trimmedText;
     const savedAttachments = [...attachments];
-
-    // Optimistically clear the input
-    setText("");
-    setAttachments([]);
-    setShowCommands(false);
+    setText(""); setAttachments([]); setShowCommands(false);
     textBeforeSpeechRef.current = "";
     onClearError?.();
-
     try {
       await onSend?.(savedText, savedAttachments, { queueBehavior });
     } catch {
-      // Restore draft on failure so the user doesn't lose their message
       setText(savedText);
       setAttachments(savedAttachments);
     }
@@ -601,47 +298,34 @@ export function PromptInput({
 
   const handleSubmit = useCallback(() => {
     if (sendDisabled) return;
-
-    if (showAbortButton) {
-      onAbort?.();
-      return;
-    }
-
+    if (showAbortButton) { onAbort?.(); return; }
     sendDraft(isStreaming ? "steer" : undefined);
   }, [isStreaming, onAbort, sendDraft, sendDisabled, showAbortButton]);
 
   // --- Slash commands ---
-  const handleTextChange = useCallback(
-    (value: string) => {
-      setText(value);
-      const slashMatch = value.match(/(?:^|\s)\/([\w:-]*)$/);
-      if (slashMatch) {
-        const query = slashMatch[1].toLowerCase();
-        const matches = slashCommands.filter((cmd) =>
-          cmd.name.toLowerCase().startsWith(query),
-        );
-        setFilteredCommands(matches);
-        setSlashIndex(0);
-        setShowCommands(matches.length > 0);
-      } else {
-        setShowCommands(false);
-      }
-    },
-    [slashCommands],
-  );
-
-  const handleSelectCommand = useCallback(
-    (command: SlashCommand) => {
-      const newText = text.replace(/(?:^|\s)\/([\w]*)$/, (match) => {
-        const prefix = match.startsWith(" ") ? " " : "";
-        return `${prefix}/${command.name} `;
-      });
-      setText(newText);
+  const handleTextChange = useCallback((value: string) => {
+    setText(value);
+    const slashMatch = value.match(/(?:^|\s)\/([\w:-]*)$/);
+    if (slashMatch) {
+      const query = slashMatch[1].toLowerCase();
+      const matches = slashCommands.filter((cmd) => cmd.name.toLowerCase().startsWith(query));
+      setFilteredCommands(matches);
+      setSlashIndex(0);
+      setShowCommands(matches.length > 0);
+    } else {
       setShowCommands(false);
-      inputRef.current?.focus();
-    },
-    [text],
-  );
+    }
+  }, [slashCommands]);
+
+  const handleSelectCommand = useCallback((command: SlashCommand) => {
+    const newText = text.replace(/(?:^|\s)\/([\w]*)$/, (match) => {
+      const prefix = match.startsWith(" ") ? " " : "";
+      return `${prefix}/${command.name} `;
+    });
+    setText(newText);
+    setShowCommands(false);
+    inputRef.current?.focus();
+  }, [text]);
 
   // --- Attachments ---
   const addAttachment = useCallback((att: Attachment) => {
@@ -654,14 +338,8 @@ export function PromptInput({
 
   const handleFilePick = useCallback(async () => {
     if (inputDisabled) return;
-    if (Platform.OS === "web") {
-      fileInputRef.current?.click();
-      return;
-    }
-    const result = await DocumentPicker.getDocumentAsync({
-      multiple: true,
-      copyToCacheDirectory: true,
-    });
+    if (Platform.OS === "web") { fileInputRef.current?.click(); return; }
+    const result = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true });
     if (!result.canceled && result.assets) {
       for (const asset of result.assets) {
         const isImage = asset.mimeType?.startsWith("image/");
@@ -676,36 +354,30 @@ export function PromptInput({
     }
   }, [addAttachment, inputDisabled]);
 
-  const handleWebFileChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (!files) return;
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const isImage = file.type.startsWith("image/");
-        const att: Attachment = {
-          id: `${Date.now()}-${Math.random()}`,
-          name: file.name,
-          type: isImage ? "image" : "file",
-          size: file.size,
-        };
-        if (isImage) {
-          const reader = new FileReader();
-          reader.onload = () => {
-            att.preview = reader.result as string;
-            addAttachment({ ...att });
-          };
-          reader.readAsDataURL(file);
-        } else {
-          addAttachment(att);
-        }
+  const handleWebFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const isImage = file.type.startsWith("image/");
+      const att: Attachment = {
+        id: `${Date.now()}-${Math.random()}`,
+        name: file.name,
+        type: isImage ? "image" : "file",
+        size: file.size,
+      };
+      if (isImage) {
+        const reader = new FileReader();
+        reader.onload = () => { att.preview = reader.result as string; addAttachment({ ...att }); };
+        reader.readAsDataURL(file);
+      } else {
+        addAttachment(att);
       }
-      e.target.value = "";
-    },
-    [addAttachment],
-  );
+    }
+    e.target.value = "";
+  }, [addAttachment]);
 
-  // Paste handler
+  // --- Paste ---
   useEffect(() => {
     if (Platform.OS !== "web") return;
     const handlePaste = (e: ClipboardEvent) => {
@@ -747,75 +419,33 @@ export function PromptInput({
   }, [addAttachment]);
 
   // --- Keyboard nav for slash commands ---
-  const handleKeyPress = useCallback(
-    (e: NativeSyntheticEvent<PromptKeyPressEventData>) => {
-      const { key, shiftKey, isComposing, keyCode } = e.nativeEvent;
-      const isShiftEnter = key === "Enter" && shiftKey;
-      const isImeComposing = isComposing === true || keyCode === 229;
-      const PAGE_SIZE = 7;
+  const handleKeyPress = useCallback((e: NativeSyntheticEvent<PromptKeyPressEventData>) => {
+    const { key, shiftKey, isComposing, keyCode } = e.nativeEvent;
+    const isShiftEnter = key === "Enter" && shiftKey;
+    const isImeComposing = isComposing === true || keyCode === 229;
+    const PAGE_SIZE = 7;
 
-      if (showCommands && filteredCommands.length > 0) {
-        if (key === "ArrowUp") {
-          e.preventDefault?.();
-          setSlashIndex((prev) =>
-            prev <= 0 ? filteredCommands.length - 1 : prev - 1,
-          );
-          return;
-        }
-        if (key === "ArrowDown") {
-          e.preventDefault?.();
-          setSlashIndex((prev) =>
-            prev >= filteredCommands.length - 1 ? 0 : prev + 1,
-          );
-          return;
-        }
-        if (key === "PageUp") {
-          e.preventDefault?.();
-          setSlashIndex((prev) => Math.max(0, prev - PAGE_SIZE));
-          return;
-        }
-        if (key === "PageDown") {
-          e.preventDefault?.();
-          setSlashIndex((prev) =>
-            Math.min(filteredCommands.length - 1, prev + PAGE_SIZE),
-          );
-          return;
-        }
-        if (key === "Home") {
-          e.preventDefault?.();
-          setSlashIndex(0);
-          return;
-        }
-        if (key === "End") {
-          e.preventDefault?.();
-          setSlashIndex(filteredCommands.length - 1);
-          return;
-        }
-        if (key === "Tab" || (key === "Enter" && !isShiftEnter)) {
-          e.preventDefault?.();
-          handleSelectCommand(filteredCommands[slashIndex]);
-          return;
-        }
-        if (key === "Escape") {
-          setShowCommands(false);
-          return;
-        }
-      }
+    if (showCommands && filteredCommands.length > 0) {
+      if (key === "ArrowUp") { e.preventDefault?.(); setSlashIndex((prev) => prev <= 0 ? filteredCommands.length - 1 : prev - 1); return; }
+      if (key === "ArrowDown") { e.preventDefault?.(); setSlashIndex((prev) => prev >= filteredCommands.length - 1 ? 0 : prev + 1); return; }
+      if (key === "PageUp") { e.preventDefault?.(); setSlashIndex((prev) => Math.max(0, prev - PAGE_SIZE)); return; }
+      if (key === "PageDown") { e.preventDefault?.(); setSlashIndex((prev) => Math.min(filteredCommands.length - 1, prev + PAGE_SIZE)); return; }
+      if (key === "Home") { e.preventDefault?.(); setSlashIndex(0); return; }
+      if (key === "End") { e.preventDefault?.(); setSlashIndex(filteredCommands.length - 1); return; }
+      if (key === "Tab" || (key === "Enter" && !isShiftEnter)) { e.preventDefault?.(); handleSelectCommand(filteredCommands[slashIndex]); return; }
+      if (key === "Escape") { setShowCommands(false); return; }
+    }
 
-      if (Platform.OS === "web" && key === "Enter" && !isShiftEnter) {
-        if (isImeComposing) return;
-        e.preventDefault?.();
-        handleSubmit();
-      }
-    },
-    [
-      filteredCommands,
-      handleSelectCommand,
-      handleSubmit,
-      showCommands,
-      slashIndex,
-    ],
-  );
+    if (Platform.OS === "web" && key === "Enter" && !isShiftEnter) {
+      if (isImeComposing) return;
+      e.preventDefault?.();
+      handleSubmit();
+    }
+  }, [filteredCommands, handleSelectCommand, handleSubmit, showCommands, slashIndex]);
+
+  // =========================================================================
+  // Render
+  // =========================================================================
 
   return (
     <Animated.View
@@ -842,17 +472,9 @@ export function PromptInput({
       {!!errorMessage && (
         <Pressable
           onPress={onClearError}
-          style={[
-            styles.sendError,
-            { backgroundColor: theme.isDark ? "#3a1a1a" : "#FEE2E2" },
-          ]}
+          style={[styles.sendError, { backgroundColor: theme.isDark ? "#3a1a1a" : "#FEE2E2" }]}
         >
-          <Text
-            style={[
-              styles.sendErrorText,
-              { color: theme.isDark ? "#FCA5A5" : "#DC2626" },
-            ]}
-          >
+          <Text style={[styles.sendErrorText, { color: theme.isDark ? "#FCA5A5" : "#DC2626" }]}>
             {errorMessage}
           </Text>
         </Pressable>
@@ -862,17 +484,9 @@ export function PromptInput({
       {speechError && (
         <Pressable
           onPress={clearSpeechError}
-          style={[
-            styles.speechError,
-            { backgroundColor: theme.isDark ? "#3a1a1a" : "#FEE2E2" },
-          ]}
+          style={[styles.speechError, { backgroundColor: theme.isDark ? "#3a1a1a" : "#FEE2E2" }]}
         >
-          <Text
-            style={[
-              styles.speechErrorText,
-              { color: theme.isDark ? "#FCA5A5" : "#DC2626" },
-            ]}
-          >
+          <Text style={[styles.speechErrorText, { color: theme.isDark ? "#FCA5A5" : "#DC2626" }]}>
             {speechError}
           </Text>
         </Pressable>
@@ -891,9 +505,7 @@ export function PromptInput({
             ...(entryDone
               ? Platform.OS === "web"
                 ? {
-                    boxShadow: isFocused
-                      ? "0px 2px 6px rgba(0, 0, 0, 0.08)"
-                      : "0px 0px 0px rgba(0, 0, 0, 0)",
+                    boxShadow: isFocused ? "0px 2px 6px rgba(0, 0, 0, 0.08)" : "0px 0px 0px rgba(0, 0, 0, 0)",
                     transitionProperty: "box-shadow",
                     transitionDuration: "180ms",
                     transitionTimingFunction: "ease",
@@ -925,20 +537,13 @@ export function PromptInput({
           onChangeText={handleTextChange}
           onKeyPress={handleKeyPress}
           onTouchStart={undefined}
-          onFocus={() => {
-            setIsFocused(true);
-          }}
-          onBlur={() => {
-            setIsFocused(false);
-          }}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
           accessibilityLabel="Prompt input"
           accessibilityHint="Press Enter to send, Shift+Enter for a new line, and type / for commands."
         />
 
-        <AttachmentChips
-          attachments={attachments}
-          onRemove={removeAttachment}
-        />
+        <AttachmentChips attachments={attachments} onRemove={removeAttachment} />
 
         <View style={styles.actionRow}>
           {Platform.OS === "web" && (
@@ -961,38 +566,18 @@ export function PromptInput({
             <Plus size={18} color={theme.textMuted} strokeWidth={1.8} />
           </Pressable>
           {isListening ? (
-            <Pressable
-              style={[styles.micWaveRow]}
-              onPress={handleMicPress}
-              accessibilityRole="button"
-              accessibilityLabel="Stop recording"
-            >
-              <Square
-                size={12}
-                color="#EF4444"
-                strokeWidth={2}
-                fill="#EF4444"
-              />
+            <Pressable style={styles.micWaveRow} onPress={handleMicPress} accessibilityRole="button" accessibilityLabel="Stop recording">
+              <Square size={12} color="#EF4444" strokeWidth={2} fill="#EF4444" />
               <WaveformBars audioLevel={audioLevel} />
             </Pressable>
           ) : (
-            <Pressable
-              style={styles.micButton}
-              onPress={handleMicPress}
-              disabled={inputDisabled}
-              accessibilityRole="button"
-              accessibilityLabel="Start voice input"
-            >
+            <Pressable style={styles.micButton} onPress={handleMicPress} disabled={inputDisabled} accessibilityRole="button" accessibilityLabel="Start voice input">
               <Mic size={16} color={theme.textMuted} strokeWidth={1.8} />
             </Pressable>
           )}
           <View style={{ flex: 1 }} />
           {contextUsage ? (
-            <ContextUsageRing
-              used={contextUsage.used}
-              total={contextUsage.total}
-              isDark={theme.isDark}
-            />
+            <ContextUsageRing used={contextUsage.used} total={contextUsage.total} isDark={theme.isDark} />
           ) : null}
           {showQueueActions ? (
             <View style={styles.queueActionGroup}>
@@ -1012,12 +597,7 @@ export function PromptInput({
                     },
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.queueActionText,
-                      { color: theme.textSecondary },
-                    ]}
-                  >
+                  <Text style={[styles.queueActionText, { color: theme.textSecondary }]}>
                     {formatQueueBehaviorLabel(behavior)}
                   </Text>
                 </Pressable>
@@ -1038,18 +618,9 @@ export function PromptInput({
               ]}
             >
               {showAbortButton ? (
-                <Square
-                  size={12}
-                  color="#FFFFFF"
-                  strokeWidth={2}
-                  fill="#FFFFFF"
-                />
+                <Square size={12} color="#FFFFFF" strokeWidth={2} fill="#FFFFFF" />
               ) : (
-                <ArrowUp
-                  size={16}
-                  color={theme.isDark ? "#fefdfd" : theme.colors.background}
-                  strokeWidth={2}
-                />
+                <ArrowUp size={16} color={theme.isDark ? "#fefdfd" : theme.colors.background} strokeWidth={2} />
               )}
             </Pressable>
           )}
@@ -1081,22 +652,11 @@ export function PromptInput({
         />
       </View>
 
-      {/* Mobile bottom sheets */}
       {sessionReady && mobileSheet === "model" && (
-        <MobileModelSheet
-          visible
-          sessionId={sessionId}
-          onClose={closeMobileSheet}
-          config={agentConfig}
-        />
+        <MobileModelSheet visible sessionId={sessionId} onClose={closeMobileSheet} config={agentConfig} />
       )}
       {sessionReady && mobileSheet === "effort" && (
-        <MobileEffortSheet
-          visible
-          sessionId={sessionId}
-          onClose={closeMobileSheet}
-          config={agentConfig}
-        />
+        <MobileEffortSheet visible sessionId={sessionId} onClose={closeMobileSheet} config={agentConfig} />
       )}
     </Animated.View>
   );
