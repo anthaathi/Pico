@@ -35,7 +35,7 @@ export function WriteToolCall({ tc }: { tc: ToolCallInfo }) {
   const isRunning = isToolCallActive(tc);
   const isVisible = useIsMessageVisible();
   const statusLabel = getToolStatusLabel(tc);
-  const [expanded, setExpanded] = useState(isRunning);
+  const [expanded, setExpanded] = useState(isWideScreen && isRunning);
   const [sheetOpen, setSheetOpen] = useState(false);
   const diffViewMode = useAppSettingsStore((s) => s.diffViewMode);
   const updateSettings = useAppSettingsStore((s) => s.update);
@@ -45,8 +45,8 @@ export function WriteToolCall({ tc }: { tc: ToolCallInfo }) {
   const [baseline, setBaseline] = useState<WriteBaselineState | null>(null);
 
   useEffect(() => {
-    if (isRunning) setExpanded(true);
-  }, [isRunning]);
+    if (isRunning && isWideScreen) setExpanded(true);
+  }, [isRunning, isWideScreen]);
 
   const parsed = parseToolArguments(tc.arguments);
   const path = parsed.path ?? "";
@@ -114,8 +114,8 @@ export function WriteToolCall({ tc }: { tc: ToolCallInfo }) {
   return (
     <View>
       <Pressable style={styles.row} onPress={() => {
-        if (!isWideScreen && (hasData || !!newText)) {
-          setSheetOpen(true);
+        if (!isWideScreen) {
+          if (hasData || !!newText) setSheetOpen(true);
         } else {
           animateLayout();
           setExpanded((v) => !v);

@@ -26,7 +26,7 @@ export function EditToolCall({ tc }: { tc: ToolCallInfo }) {
   const isRunning = isToolCallActive(tc);
   const isVisible = useIsMessageVisible();
   const statusLabel = getToolStatusLabel(tc);
-  const [expanded, setExpanded] = useState(isRunning);
+  const [expanded, setExpanded] = useState(isWideScreen && isRunning);
   const [sheetOpen, setSheetOpen] = useState(false);
   const diffViewMode = useAppSettingsStore((s) => s.diffViewMode);
   const updateSettings = useAppSettingsStore((s) => s.update);
@@ -35,8 +35,8 @@ export function EditToolCall({ tc }: { tc: ToolCallInfo }) {
   const [containerWidth, setContainerWidth] = useState(0);
 
   useEffect(() => {
-    if (isRunning) setExpanded(true);
-  }, [isRunning]);
+    if (isRunning && isWideScreen) setExpanded(true);
+  }, [isRunning, isWideScreen]);
 
   const parsed = parseToolArguments(tc.arguments);
   const path = parsed.path ?? "";
