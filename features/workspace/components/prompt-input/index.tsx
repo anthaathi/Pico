@@ -50,6 +50,11 @@ import { MobileEffortSheet } from "./mobile-effort-sheet";
 const BAR_COUNT = 5;
 const BAR_SCALES = [0.6, 0.85, 1, 0.85, 0.6];
 const EMPTY_SLASH_COMMANDS: SlashCommand[] = [];
+const BUILTIN_COMMANDS: SlashCommand[] = [
+  { name: "chat", description: "Switch to chat mode" },
+  { name: "plan", description: "Switch to plan mode" },
+  { name: "compact", description: "Compact conversation history" },
+];
 
 function WaveformBars({ audioLevel }: { audioLevel: number }) {
   const anims = useRef(
@@ -320,7 +325,12 @@ export function PromptInput({
     enabled: !!sessionId && sessionReady,
     staleTime: 60_000,
   });
-  const slashCommands = backendCommands ?? EMPTY_SLASH_COMMANDS;
+  const slashCommands = useMemo(() => {
+    const backend = backendCommands ?? EMPTY_SLASH_COMMANDS;
+    const backendNames = new Set(backend.map((c) => c.name));
+    const builtins = BUILTIN_COMMANDS.filter((c) => !backendNames.has(c.name));
+    return [...backend, ...builtins];
+  }, [backendCommands]);
 
   // Keyboard visibility (mobile)
   const [keyboardVisible, setKeyboardVisible] = useState(false);
