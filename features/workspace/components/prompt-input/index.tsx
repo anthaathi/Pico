@@ -12,7 +12,7 @@ import {
   TextInputKeyPressEventData,
   View,
 } from "react-native";
-import { Plus, ArrowUp, Mic, Square, Maximize2, Minimize2 } from "lucide-react-native";
+import { Plus, ArrowUp, Mic, Square } from "lucide-react-native";
 import Svg, { Circle as SvgCircle } from "react-native-svg";
 import * as DocumentPicker from "expo-document-picker";
 import { useQuery } from "@tanstack/react-query";
@@ -505,31 +505,13 @@ export function PromptInput({
   }, [inputDisabled, isListening, text, startListening, stopListening]);
 
   // --- Auto-grow ---
-  const LINE_HEIGHT = 21;
-  const MIN_HEIGHT = LINE_HEIGHT * 1;
-  const MAX_HEIGHT_NORMAL = LINE_HEIGHT * 6;
-  const MAX_HEIGHT_EXPANDED = LINE_HEIGHT * 16;
-  const [inputExpanded, setInputExpanded] = useState(false);
-  const [contentHeight, setContentHeight] = useState(MIN_HEIGHT);
-  const maxHeight = inputExpanded ? MAX_HEIGHT_EXPANDED : MAX_HEIGHT_NORMAL;
-  const inputHeight = Math.max(MIN_HEIGHT, Math.min(contentHeight, maxHeight));
-
-  const handleContentSizeChangeInput = useCallback(
-    (e: { nativeEvent: { contentSize: { height: number } } }) => {
-      setContentHeight(e.nativeEvent.contentSize.height);
-    },
-    [],
+  const MIN_LINES = 2;
+  const MAX_LINES = 6;
+  const lineCount = Math.min(
+    Math.max(text.split("\n").length, MIN_LINES),
+    MAX_LINES,
   );
 
-  const toggleExpand = useCallback(() => {
-    LayoutAnimation.configureNext(
-      LayoutAnimation.create(200, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity),
-    );
-    setInputExpanded((v) => !v);
-  }, []);
-
-  // Web textarea sizing
-  const lineCount = Math.max(1, Math.ceil(inputHeight / LINE_HEIGHT));
   useEffect(() => {
     if (Platform.OS !== "web") return;
     const el = inputRef.current as any;
@@ -932,17 +914,17 @@ export function PromptInput({
           placeholderTextColor={theme.textMuted}
           style={[
             styles.input,
-            { color: theme.textPrimary, height: inputHeight },
+            { color: theme.textPrimary },
             sendDisabled && !canComposeWhileDisabled && { opacity: 0.5 },
           ]}
           editable={!inputDisabled}
           multiline
-          scrollEnabled={contentHeight > maxHeight}
+          numberOfLines={lineCount}
           {...(Platform.OS === "web" ? ({ rows: lineCount } as any) : {})}
           value={text}
           onChangeText={handleTextChange}
           onKeyPress={handleKeyPress}
-          onContentSizeChange={handleContentSizeChangeInput}
+          onTouchStart={undefined}
           onFocus={() => {
             setIsFocused(true);
           }}
@@ -1004,20 +986,6 @@ export function PromptInput({
               <Mic size={16} color={theme.textMuted} strokeWidth={1.8} />
             </Pressable>
           )}
-          {contentHeight > MAX_HEIGHT_NORMAL || inputExpanded ? (
-            <Pressable
-              style={styles.expandButton}
-              onPress={toggleExpand}
-              accessibilityRole="button"
-              accessibilityLabel={inputExpanded ? "Minimize input" : "Expand input"}
-            >
-              {inputExpanded ? (
-                <Minimize2 size={14} color={theme.textMuted} strokeWidth={1.8} />
-              ) : (
-                <Maximize2 size={14} color={theme.textMuted} strokeWidth={1.8} />
-              )}
-            </Pressable>
-          ) : null}
           <View style={{ flex: 1 }} />
           {contextUsage ? (
             <ContextUsageRing
@@ -1174,12 +1142,10 @@ const styles = StyleSheet.create({
   },
   input: {
     paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 6,
+    paddingTop: 14,
+    paddingBottom: 8,
     fontSize: 15,
-    lineHeight: 21,
     fontFamily: Fonts.sans,
-    textAlignVertical: "top" as const,
     outlineStyle: "none" as never,
   },
   actionRow: {
@@ -1196,13 +1162,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   micButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 6,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  expandButton: {
     width: 32,
     height: 32,
     borderRadius: 6,
