@@ -2,11 +2,13 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Check,
   ChevronDown,
+  ExternalLink,
   PanelLeft,
   Search,
   Settings,
 } from "lucide-react-native";
 import {
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -24,6 +26,8 @@ import { useServersStore, type Server } from "@/features/servers/store";
 import { useAuthStore } from "@/features/auth/store";
 import { useWorkspaceStore } from "@/features/workspace/store";
 import { useAppMode } from "@/hooks/use-app-mode";
+import { useGitStatus } from "@/features/workspace/hooks/use-git-status";
+import { gitRemoteToBrowserUrl } from "@/features/workspace/utils/git-remote-url";
 
 interface HeaderBarProps {
   onToggleSidebar: () => void;
@@ -48,7 +52,15 @@ export function HeaderBar({
   const servers = useServersStore((s) => s.servers);
   const activeServer = servers.find((s) => s.id === activeServerId);
   const fetchWorkspaces = useWorkspaceStore((s) => s.fetchWorkspaces);
-  const isCodeMode = useAppMode() === "code";
+  const appMode = useAppMode();
+  const isCodeMode = appMode === "code";
+
+  const workspace = useWorkspaceStore((s) =>
+    s.workspaces.find((w) => w.id === s.selectedWorkspaceId)
+  );
+  const cwd = isCodeMode ? (workspace?.path ?? null) : null;
+  const { data: gitData } = useGitStatus(cwd);
+  const remoteInfo = gitRemoteToBrowserUrl(gitData?.remote_url);
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -247,6 +259,19 @@ export function HeaderBar({
       />
 
       <View style={styles.rightSection}>
+        {remoteInfo && (
+          <Pressable
+            onPress={() => Linking.openURL(remoteInfo.url)}
+            style={({ pressed }) => [
+              styles.headerBtn,
+              pressed && { opacity: 0.7 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={`Open in ${remoteInfo.label}`}
+          >
+            <ExternalLink size={16} color={textMuted} strokeWidth={1.8} />
+          </Pressable>
+        )}
         <Pressable
           onPress={() => setPaletteVisible(true)}
           style={({ pressed }) => [
