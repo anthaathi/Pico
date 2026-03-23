@@ -33,6 +33,7 @@ import { ChatSidebar } from "@/features/chat/components/chat-sidebar";
 import { ChatSheet } from "@/features/chat/components/chat-sheet";
 import { useChatStore } from "@/features/chat/store";
 import { ConnectionStatusBanner } from "@/features/agent/components/connection-status-banner";
+import { useTasksStore } from "@/features/tasks/store";
 
 const SIDEBAR_DEFAULT = 280;
 const SIDEBAR_MIN = 200;
@@ -432,6 +433,7 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
             onWorkspacePress={() => setSheetVisible(true)}
             onGitPress={() => setChangesSheetVisible(true)}
             onChatSessionsPress={() => setChatSheetVisible(true)}
+            onTasksPress={() => useTasksStore.getState().togglePanel()}
           />
         )}
         <View style={styles.mobileContent}>

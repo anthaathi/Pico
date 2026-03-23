@@ -22,6 +22,7 @@ use crate::services::provider::PiAgentProvider;
 use crate::services::connection::ConnectionInfo;
 use crate::services::pairing::PairingManager;
 use crate::services::runtime;
+use crate::services::task::TaskManager;
 use crate::terminal;
 
 use self::openapi::ApiDoc;
@@ -76,6 +77,12 @@ pub async fn serve(cli: Cli, force_qr: bool) -> anyhow::Result<()> {
     let agent = AgentManager::new(pi_provider);
     agent.start_idle_cleanup_task();
 
+    let task_manager = TaskManager::new(
+        agent.broadcast_tx().clone(),
+        agent.event_counter().clone(),
+        agent.event_buffer().clone(),
+    );
+
     let instance_id = Arc::new(uuid::Uuid::new_v4().to_string());
     tracing::info!("Server instance ID: {instance_id}");
 
@@ -84,6 +91,7 @@ pub async fn serve(cli: Cli, force_qr: bool) -> anyhow::Result<()> {
         db: Arc::new(db),
         pairing: pairing.clone(),
         agent,
+        task_manager,
         instance_id,
     };
 

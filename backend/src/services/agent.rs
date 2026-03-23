@@ -502,6 +502,18 @@ impl AgentManager {
         .await;
     }
 
+    pub fn broadcast_tx(&self) -> &broadcast::Sender<StreamEvent> {
+        &self.broadcast_tx
+    }
+
+    pub fn event_counter(&self) -> &Arc<AtomicU64> {
+        &self.event_counter
+    }
+
+    pub fn event_buffer(&self) -> &Arc<Mutex<std::collections::VecDeque<StreamEvent>>> {
+        &self.event_buffer
+    }
+
     pub fn subscribe(&self) -> broadcast::Receiver<StreamEvent> {
         self.broadcast_tx.subscribe()
     }

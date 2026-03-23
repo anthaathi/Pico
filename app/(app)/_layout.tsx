@@ -4,6 +4,7 @@ import { Redirect, Slot, usePathname } from 'expo-router';
 
 import { PiClientProvider, type PiClientConfig } from '@pi-ui/client';
 import { AdaptiveNavigation } from '@/features/navigation/containers/adaptive-navigation';
+import { TaskEventSubscriber } from '@/features/tasks/components/task-event-subscriber';
 import { useAuthStore } from '@/features/auth/store';
 import { useServersStore } from '@/features/servers/store';
 import { useWorkspaceStore } from '@/features/workspace/store';
@@ -104,6 +105,7 @@ export default function AppLayout() {
 
   return (
     <PiClientProvider config={piClientConfig}>
+      <TaskEventSubscriber />
       <AdaptiveNavigation>
         <Slot />
       </AdaptiveNavigation>

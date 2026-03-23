@@ -30,6 +30,7 @@ import { useWorkspaceStore } from "@/features/workspace/store";
 import { useAppMode } from "@/hooks/use-app-mode";
 import { useGitStatus, useNestedRepos } from "@/features/workspace/hooks/use-git-status";
 import { remotesToLinks, type RemoteLink } from "@/features/workspace/utils/git-remote-url";
+import { TasksButton } from "@/features/tasks/components/tasks-panel";
 
 function RepoIcon({ host, size, color }: { host: string; size: number; color: string }) {
   if (host === "github") return <Github size={size} color={color} strokeWidth={1.8} />;
@@ -375,6 +376,7 @@ export function HeaderBar({
             )}
           </View>
         )}
+        {isCodeMode && <TasksButton />}
         <Pressable
           onPress={() => setPaletteVisible(true)}
           style={({ pressed }) => [

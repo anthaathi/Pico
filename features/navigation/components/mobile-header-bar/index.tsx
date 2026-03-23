@@ -9,14 +9,16 @@ import { useWorkspaceStore } from '@/features/workspace/store';
 import { useChatStore } from '@/features/chat/store';
 import { useGitStatus, useNestedRepos } from '@/features/workspace/hooks/use-git-status';
 import { remotesToLinks, type RemoteLink } from '@/features/workspace/utils/git-remote-url';
+import { MobileTasksButton } from '@/features/tasks/components/mobile-tasks-button';
 
 interface MobileHeaderBarProps {
   onWorkspacePress: () => void;
   onGitPress: () => void;
   onChatSessionsPress?: () => void;
+  onTasksPress?: () => void;
 }
 
-export function MobileHeaderBar({ onWorkspacePress, onGitPress, onChatSessionsPress }: MobileHeaderBarProps) {
+export function MobileHeaderBar({ onWorkspacePress, onGitPress, onChatSessionsPress, onTasksPress }: MobileHeaderBarProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
   const isDark = colorScheme === 'dark';
@@ -125,6 +127,13 @@ export function MobileHeaderBar({ onWorkspacePress, onGitPress, onChatSessionsPr
               <ExternalLink size={16} color={textPrimary} strokeWidth={1.8} />
             )}
           </Pressable>
+        )}
+        {appMode === 'code' && (
+          <MobileTasksButton
+            color={textPrimary}
+            bgColor={buttonBg}
+            onPress={onTasksPress ?? (() => {})}
+          />
         )}
         {appMode === 'code' && (
           <Pressable

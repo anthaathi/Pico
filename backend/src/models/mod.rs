@@ -375,3 +375,97 @@ pub struct SessionTreeNode {
     pub timestamp: String,
     pub children: Vec<SessionTreeNode>,
 }
+
+// ---------------------------------------------------------------------------
+// Tasks
+// ---------------------------------------------------------------------------
+
+/// A single task definition – either from .pi/tasks.json or auto-detected
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct TaskDefinition {
+    pub label: String,
+    #[serde(default = "default_task_type")]
+    #[serde(rename = "type")]
+    pub task_type: String,
+    pub command: String,
+    #[serde(default)]
+    pub group: Option<String>,
+    #[serde(default)]
+    pub is_background: Option<bool>,
+    #[serde(default)]
+    pub auto_run: Option<bool>,
+    #[serde(default)]
+    pub cwd: Option<String>,
+    #[serde(default)]
+    pub env: Option<std::collections::HashMap<String, String>>,
+    /// Where this task was detected from: "npm", "make", "cargo", "docker-compose",
+    /// "pip", "gradle", "pi" (from .pi/tasks.json), etc.
+    #[serde(default = "default_source_pi")]
+    pub source: String,
+}
+
+fn default_task_type() -> String {
+    "shell".to_string()
+}
+
+fn default_source_pi() -> String {
+    "pi".to_string()
+}
+
+/// Tasks configuration file format
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct TasksConfig {
+    #[serde(default = "default_tasks_version")]
+    pub version: String,
+    pub tasks: Vec<TaskDefinition>,
+}
+
+fn default_tasks_version() -> String {
+    "1.0".to_string()
+}
+
+/// Status of a running task
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum TaskStatus {
+    Running,
+    Stopped,
+    Failed,
+}
+
+/// Runtime info about a task instance
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct TaskInfo {
+    pub id: String,
+    pub label: String,
+    pub command: String,
+    pub workspace_id: String,
+    pub status: TaskStatus,
+    pub exit_code: Option<i32>,
+    pub started_at: String,
+    pub stopped_at: Option<String>,
+    /// Source of the task: "npm", "make", "cargo", "pi", etc.
+    pub source: String,
+}
+
+/// Task log output
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct TaskLogs {
+    pub id: String,
+    pub label: String,
+    pub lines: Vec<String>,
+    pub total_lines: u32,
+}
+
+/// Request to start a task
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+pub struct StartTaskRequest {
+    pub label: String,
+    pub workspace_id: String,
+}
+
+/// Request to stop/restart a task
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+pub struct TaskActionRequest {
+    pub task_id: String,
+}

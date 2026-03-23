@@ -14,6 +14,7 @@ pub fn api_routes() -> Router<AppState> {
         .merge(agent_routes())
         .merge(chat_routes())
         .merge(custom_model_routes())
+        .merge(task_routes())
 }
 
 fn auth_routes() -> Router<AppState> {
@@ -226,4 +227,15 @@ fn custom_model_routes() -> Router<AppState> {
             "/custom-models",
             axum::routing::put(routes::custom_models::save_custom_models),
         )
+}
+
+fn task_routes() -> Router<AppState> {
+    Router::new()
+        .route("/tasks/config/{workspace_id}", get(routes::task::get_config))
+        .route("/tasks/list/{workspace_id}", get(routes::task::list_tasks))
+        .route("/tasks/start", post(routes::task::start_task))
+        .route("/tasks/stop", post(routes::task::stop_task))
+        .route("/tasks/restart", post(routes::task::restart_task))
+        .route("/tasks/logs/{task_id}", get(routes::task::get_logs))
+        .route("/tasks/remove/{task_id}", delete(routes::task::remove_task))
 }
