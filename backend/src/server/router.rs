@@ -98,6 +98,7 @@ fn fs_routes() -> Router<AppState> {
 fn git_routes() -> Router<AppState> {
     Router::new()
         .route("/git/status", get(routes::git::status))
+        .route("/git/repos", get(routes::git::nested_repos))
         .route("/git/branches", get(routes::git::branches))
         .route("/git/log", get(routes::git::log))
         .route("/git/checkout", post(routes::git::checkout))

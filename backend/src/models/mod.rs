@@ -209,6 +209,27 @@ pub struct GitStatusResponse {
     pub behind: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_url: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub remotes: Vec<GitRemote>,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct GitRemote {
+    pub name: String,
+    pub url: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct NestedGitRepo {
+    /// Relative path from the workspace root
+    pub path: String,
+    pub branch: String,
+    pub remotes: Vec<GitRemote>,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct NestedGitReposResponse {
+    pub repos: Vec<NestedGitRepo>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]

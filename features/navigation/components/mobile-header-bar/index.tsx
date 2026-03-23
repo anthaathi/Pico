@@ -7,8 +7,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAppMode } from '@/hooks/use-app-mode';
 import { useWorkspaceStore } from '@/features/workspace/store';
 import { useChatStore } from '@/features/chat/store';
-import { useGitStatus } from '@/features/workspace/hooks/use-git-status';
-import { gitRemoteToBrowserUrl } from '@/features/workspace/utils/git-remote-url';
+import { useGitStatus, useNestedRepos } from '@/features/workspace/hooks/use-git-status';
+import { remotesToLinks, type RemoteLink } from '@/features/workspace/utils/git-remote-url';
 
 interface MobileHeaderBarProps {
   onWorkspacePress: () => void;
@@ -30,7 +30,23 @@ export function MobileHeaderBar({ onWorkspacePress, onGitPress, onChatSessionsPr
 
   const cwd = appMode === 'code' ? (workspace?.path ?? null) : null;
   const { data: gitData } = useGitStatus(cwd);
-  const remoteInfo = gitRemoteToBrowserUrl(gitData?.remote_url);
+  const { data: nestedRepos } = useNestedRepos(cwd);
+
+  // Collect all remote links: root repo + nested repos
+  const allLinks: Array<RemoteLink & { repoPath?: string }> = [];
+  const rootLinks = remotesToLinks(gitData?.remotes);
+  for (const link of rootLinks) {
+    allLinks.push(link);
+  }
+  if (nestedRepos) {
+    for (const repo of nestedRepos) {
+      const links = remotesToLinks(repo.remotes);
+      for (const link of links) {
+        allLinks.push({ ...link, repoPath: repo.path });
+      }
+    }
+  }
+  const firstLink = allLinks.length > 0 ? allLinks[0] : null;
 
   const textPrimary = isDark ? '#fefdfd' : colors.text;
   const borderColor = isDark ? '#323131' : 'rgba(0,0,0,0.08)';
@@ -90,16 +106,16 @@ export function MobileHeaderBar({ onWorkspacePress, onGitPress, onChatSessionsPr
       </View>
 
       <View style={styles.headerActions}>
-        {appMode === 'code' && remoteInfo && (
+        {appMode === 'code' && firstLink && (
           <Pressable
-            onPress={() => Linking.openURL(remoteInfo.url)}
+            onPress={() => Linking.openURL(firstLink.browserUrl)}
             style={({ pressed }) => [
               styles.iconButton,
               { backgroundColor: buttonBg },
               pressed && { opacity: 0.7 },
             ]}
             accessibilityRole="button"
-            accessibilityLabel={`Open in ${remoteInfo.label}`}
+            accessibilityLabel={`Open in ${firstLink.label}`}
           >
             <ExternalLink size={16} color={textPrimary} strokeWidth={1.8} />
           </Pressable>

@@ -254,6 +254,11 @@ export type GitPathsRequest = {
     paths: Array<string>;
 };
 
+export type GitRemote = {
+    name: string;
+    url: string;
+};
+
 export type GitStashApplyRequest = {
     index?: number | null;
     pop?: boolean | null;
@@ -270,6 +275,7 @@ export type GitStatusResponse = {
     branch: string;
     is_clean: boolean;
     remote_url?: string | null;
+    remotes?: Array<GitRemote>;
     staged: Array<GitFileEntry>;
     unstaged: Array<GitFileEntry>;
     untracked: Array<string>;
@@ -310,6 +316,19 @@ export type LoginRequest = {
 
 export type LogoutRequest = {
     refresh_token?: string | null;
+};
+
+export type NestedGitRepo = {
+    branch: string;
+    /**
+     * Relative path from the workspace root
+     */
+    path: string;
+    remotes: Array<GitRemote>;
+};
+
+export type NestedGitReposResponse = {
+    repos: Array<NestedGitRepo>;
 };
 
 export type OperationLog = {
@@ -1863,6 +1882,36 @@ export type LogResponses = {
 };
 
 export type LogResponse = LogResponses[keyof LogResponses];
+
+export type NestedReposData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Working directory path
+         */
+        cwd: string;
+    };
+    url: '/api/git/repos';
+};
+
+export type NestedReposErrors = {
+    /**
+     * Unauthorized
+     */
+    401: ErrorBody;
+};
+
+export type NestedReposError = NestedReposErrors[keyof NestedReposErrors];
+
+export type NestedReposResponses = {
+    /**
+     * Nested git repos
+     */
+    200: NestedGitReposResponse;
+};
+
+export type NestedReposResponse = NestedReposResponses[keyof NestedReposResponses];
 
 export type StageData = {
     body: GitPathsRequest;

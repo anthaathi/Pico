@@ -51,3 +51,37 @@ function classifyHost(host: string): {
   }
   return { host: 'other', label: host };
 }
+
+export interface RemoteLink {
+  name: string;
+  url: string;
+  browserUrl: string;
+  host: 'github' | 'gitlab' | 'bitbucket' | 'other';
+  label: string;
+}
+
+/**
+ * Convert an array of { name, url } remotes into browser-friendly links.
+ * Deduplicates by browserUrl.
+ */
+export function remotesToLinks(
+  remotes: Array<{ name: string; url: string }> | undefined,
+): RemoteLink[] {
+  if (!remotes?.length) return [];
+  const seen = new Set<string>();
+  const links: RemoteLink[] = [];
+  for (const r of remotes) {
+    const parsed = gitRemoteToBrowserUrl(r.url);
+    if (!parsed) continue;
+    if (seen.has(parsed.url)) continue;
+    seen.add(parsed.url);
+    links.push({
+      name: r.name,
+      url: r.url,
+      browserUrl: parsed.url,
+      host: parsed.host,
+      label: parsed.label,
+    });
+  }
+  return links;
+}

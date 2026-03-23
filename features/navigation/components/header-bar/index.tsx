@@ -26,8 +26,8 @@ import { useServersStore, type Server } from "@/features/servers/store";
 import { useAuthStore } from "@/features/auth/store";
 import { useWorkspaceStore } from "@/features/workspace/store";
 import { useAppMode } from "@/hooks/use-app-mode";
-import { useGitStatus } from "@/features/workspace/hooks/use-git-status";
-import { gitRemoteToBrowserUrl } from "@/features/workspace/utils/git-remote-url";
+import { useGitStatus, useNestedRepos } from "@/features/workspace/hooks/use-git-status";
+import { remotesToLinks, type RemoteLink } from "@/features/workspace/utils/git-remote-url";
 
 interface HeaderBarProps {
   onToggleSidebar: () => void;
@@ -60,7 +60,25 @@ export function HeaderBar({
   );
   const cwd = isCodeMode ? (workspace?.path ?? null) : null;
   const { data: gitData } = useGitStatus(cwd);
-  const remoteInfo = gitRemoteToBrowserUrl(gitData?.remote_url);
+  const { data: nestedRepos } = useNestedRepos(cwd);
+  const [repoMenuVisible, setRepoMenuVisible] = useState(false);
+
+  // Collect all remote links: root repo + nested repos
+  const allLinks: Array<RemoteLink & { repoPath?: string }> = [];
+  const rootLinks = remotesToLinks(gitData?.remotes);
+  for (const link of rootLinks) {
+    allLinks.push(link);
+  }
+  if (nestedRepos) {
+    for (const repo of nestedRepos) {
+      const links = remotesToLinks(repo.remotes);
+      for (const link of links) {
+        allLinks.push({ ...link, repoPath: repo.path });
+      }
+    }
+  }
+  const hasMultipleLinks = allLinks.length > 1;
+  const singleLink = allLinks.length === 1 ? allLinks[0] : null;
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -259,18 +277,79 @@ export function HeaderBar({
       />
 
       <View style={styles.rightSection}>
-        {remoteInfo && (
+        {singleLink && (
           <Pressable
-            onPress={() => Linking.openURL(remoteInfo.url)}
+            onPress={() => Linking.openURL(singleLink.browserUrl)}
             style={({ pressed }) => [
               styles.headerBtn,
               pressed && { opacity: 0.7 },
             ]}
             accessibilityRole="button"
-            accessibilityLabel={`Open in ${remoteInfo.label}`}
+            accessibilityLabel={`Open in ${singleLink.label}`}
           >
             <ExternalLink size={16} color={textMuted} strokeWidth={1.8} />
           </Pressable>
+        )}
+        {hasMultipleLinks && (
+          <View>
+            <Pressable
+              onPress={() => setRepoMenuVisible((v) => !v)}
+              style={({ pressed }) => [
+                styles.headerBtn,
+                pressed && { opacity: 0.7 },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Open repository"
+            >
+              <ExternalLink size={16} color={textMuted} strokeWidth={1.8} />
+            </Pressable>
+            {repoMenuVisible && (
+              <>
+                <Pressable
+                  style={StyleSheet.absoluteFill}
+                  onPress={() => setRepoMenuVisible(false)}
+                />
+                <View
+                  style={[
+                    styles.repoMenu,
+                    {
+                      backgroundColor: isDark ? "#2A2A2A" : "#FFFFFF",
+                      borderColor: isDark ? "#3A3A3A" : "#E0E0E0",
+                    },
+                  ]}
+                >
+                  {allLinks.map((link, i) => (
+                    <Pressable
+                      key={`${link.browserUrl}-${i}`}
+                      onPress={() => {
+                        Linking.openURL(link.browserUrl);
+                        setRepoMenuVisible(false);
+                      }}
+                      style={({ pressed }) => [
+                        styles.repoMenuItem,
+                        pressed && { backgroundColor: isDark ? "#333" : "#F0F0F0" },
+                      ]}
+                    >
+                      <Text
+                        style={[styles.repoMenuLabel, { color: textPrimary }]}
+                        numberOfLines={1}
+                      >
+                        {link.repoPath
+                          ? `${link.repoPath} → ${link.label}`
+                          : `${link.name} → ${link.label}`}
+                      </Text>
+                      <Text
+                        style={[styles.repoMenuUrl, { color: textMuted }]}
+                        numberOfLines={1}
+                      >
+                        {link.browserUrl.replace("https://", "")}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
+            )}
+          </View>
         )}
         <Pressable
           onPress={() => setPaletteVisible(true)}
@@ -414,6 +493,35 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+  },
+  repoMenu: {
+    position: "absolute",
+    top: 30,
+    right: 0,
+    minWidth: 240,
+    maxWidth: 360,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingVertical: 4,
+    zIndex: 100,
+    ...Platform.select({
+      web: { boxShadow: "0 4px 16px rgba(0,0,0,0.15)" },
+      default: { elevation: 8 },
+    }),
+  } as any,
+  repoMenuItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  repoMenuLabel: {
+    fontSize: 12,
+    fontFamily: Fonts.sansMedium,
+    fontWeight: "500" as const,
+  },
+  repoMenuUrl: {
+    fontSize: 11,
+    fontFamily: Fonts.mono,
+    marginTop: 1,
   },
 
 });

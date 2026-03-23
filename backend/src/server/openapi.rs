@@ -40,6 +40,7 @@ use crate::services;
         routes::fs::mkdir,
         routes::fs::delete,
         routes::git::status,
+        routes::git::nested_repos,
         routes::git::branches,
         routes::git::log,
         routes::git::checkout,

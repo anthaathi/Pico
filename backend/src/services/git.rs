@@ -2,8 +2,8 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use crate::models::{
-    GitBranch, GitDiffResponse, GitFileEntry, GitFileDiffResponse, GitLogEntry, GitStashEntry,
-    GitStatusResponse, GitWorktree,
+    GitBranch, GitDiffResponse, GitFileEntry, GitFileDiffResponse, GitLogEntry, GitRemote,
+    GitStashEntry, GitStatusResponse, GitWorktree, NestedGitRepo, NestedGitReposResponse,
 };
 
 fn expand_path(path: &str) -> PathBuf {
@@ -116,9 +116,11 @@ pub fn status(cwd: &str) -> Result<GitStatusResponse, String> {
 
     let is_clean = staged.is_empty() && unstaged.is_empty() && untracked.is_empty();
 
-    let remote_url = git(cwd, &["remote", "get-url", "origin"])
-        .ok()
-        .filter(|u| !u.is_empty());
+    let remotes = list_remotes(cwd);
+    let remote_url = remotes
+        .iter()
+        .find(|r| r.name == "origin")
+        .map(|r| r.url.clone());
 
     Ok(GitStatusResponse {
         branch,
@@ -129,6 +131,7 @@ pub fn status(cwd: &str) -> Result<GitStatusResponse, String> {
         ahead,
         behind,
         remote_url,
+        remotes,
     })
 }
 
@@ -398,5 +401,97 @@ fn status_char_to_string(c: u8) -> String {
         b'U' => "unmerged".to_string(),
         b'T' => "typechange".to_string(),
         _ => format!("{}", c as char),
+    }
+}
+
+fn list_remotes(cwd: &str) -> Vec<GitRemote> {
+    let output = match git(cwd, &["remote", "-v"]) {
+        Ok(o) => o,
+        Err(_) => return Vec::new(),
+    };
+    let mut seen = std::collections::HashSet::new();
+    let mut remotes = Vec::new();
+    for line in output.lines() {
+        // format: "origin\tgit@github.com:user/repo.git (fetch)"
+        let parts: Vec<&str> = line.split(|c| c == '\t' || c == ' ').collect();
+        if parts.len() >= 2 {
+            let name = parts[0].to_string();
+            let url = parts[1].to_string();
+            let key = format!("{}:{}", name, url);
+            if seen.insert(key) {
+                remotes.push(GitRemote { name, url });
+            }
+        }
+    }
+    remotes
+}
+
+pub fn nested_repos(cwd: &str, max_depth: u32) -> NestedGitReposResponse {
+    let root = expand_path(cwd);
+    let mut repos = Vec::new();
+    scan_for_git_repos(&root, &root, 0, max_depth, &mut repos);
+    NestedGitReposResponse { repos }
+}
+
+fn scan_for_git_repos(
+    root: &std::path::Path,
+    dir: &std::path::Path,
+    depth: u32,
+    max_depth: u32,
+    repos: &mut Vec<NestedGitRepo>,
+) {
+    if depth > max_depth {
+        return;
+    }
+
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+
+        let name = match entry.file_name().into_string() {
+            Ok(n) => n,
+            Err(_) => continue,
+        };
+
+        // Skip hidden dirs (except .git check), node_modules, target, etc.
+        if name.starts_with('.') || name == "node_modules" || name == "target" || name == "vendor" || name == "dist" || name == "build" {
+            continue;
+        }
+
+        let git_dir = path.join(".git");
+        if git_dir.exists() {
+            let cwd_str = path.to_string_lossy().to_string();
+            let rel_path = path
+                .strip_prefix(root)
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|_| cwd_str.clone());
+
+            // Skip if this is the root repo itself
+            if rel_path.is_empty() || rel_path == "." {
+                continue;
+            }
+
+            let branch = git(&cwd_str, &["rev-parse", "--abbrev-ref", "HEAD"])
+                .unwrap_or_default();
+            let remotes = list_remotes(&cwd_str);
+
+            repos.push(NestedGitRepo {
+                path: rel_path,
+                branch,
+                remotes,
+            });
+            // Don't recurse into nested git repos
+            continue;
+        }
+
+        // Recurse deeper
+        scan_for_git_repos(root, &path, depth + 1, max_depth, repos);
     }
 }

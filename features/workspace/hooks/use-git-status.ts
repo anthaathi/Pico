@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 import {
   status as gitStatus,
+  nestedRepos as gitNestedRepos,
   stage as gitStage,
   unstage as gitUnstage,
   discard as gitDiscard,
@@ -80,6 +81,11 @@ function useAppVisibility() {
   return isVisible;
 }
 
+type GitRemoteData = {
+  name: string;
+  url: string;
+};
+
 type GitStatusData = {
   branch: string;
   is_clean: boolean;
@@ -89,6 +95,13 @@ type GitStatusData = {
   ahead: number;
   behind: number;
   remote_url?: string | null;
+  remotes?: GitRemoteData[];
+};
+
+type NestedGitRepoData = {
+  path: string;
+  branch: string;
+  remotes: GitRemoteData[];
 };
 
 export function useGitStatus(cwd: string | null) {
@@ -251,5 +264,19 @@ export function useGitLog(cwd: string | null, count = 30) {
       );
     },
     enabled: !!cwd,
+  });
+}
+
+export function useNestedRepos(cwd: string | null) {
+  return useQuery({
+    queryKey: ['git-nested-repos', cwd ?? ''],
+    queryFn: async () => {
+      const result = await gitNestedRepos({ query: { cwd: cwd! } });
+      if (result.error) throw new Error('Failed to fetch nested repos');
+      const payload = extract<{ repos: NestedGitRepoData[] }>(result.data);
+      return payload?.repos ?? [];
+    },
+    enabled: !!cwd,
+    staleTime: 60_000, // refresh every 60s at most
   });
 }

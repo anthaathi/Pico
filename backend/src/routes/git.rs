@@ -85,6 +85,31 @@ pub async fn status(
 
 #[utoipa::path(
     get,
+    path = "/api/git/repos",
+    params(("cwd" = String, Query, description = "Working directory path")),
+    responses(
+        (status = 200, description = "Nested git repos", body = NestedGitReposResponse),
+        (status = 401, description = "Unauthorized", body = ErrorBody),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "git"
+)]
+pub async fn nested_repos(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    axum::extract::Query(params): axum::extract::Query<CwdQuery>,
+) -> (StatusCode, Json<ApiResponse<NestedGitReposResponse>>) {
+    auth_guard!(&state, &headers);
+
+    let cwd = params.cwd;
+    let result = tokio::task::spawn_blocking(move || git::nested_repos(&cwd, 3))
+        .await
+        .unwrap();
+    (StatusCode::OK, Json(ApiResponse::ok(result)))
+}
+
+#[utoipa::path(
+    get,
     path = "/api/git/branches",
     params(("cwd" = String, Query, description = "Working directory path")),
     responses(
