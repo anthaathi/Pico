@@ -298,7 +298,7 @@ export function HeaderBar({
           >
             <RepoIcon host={singleLink.host} size={14} color={textMuted} />
             <Text style={[styles.repoBtnLabel, { color: textMuted }]}>
-              {singleLink.label}
+              Open in {singleLink.label}
             </Text>
           </Pressable>
         )}
@@ -316,7 +316,7 @@ export function HeaderBar({
             >
               <RepoIcon host={allLinks[0].host} size={14} color={textMuted} />
               <Text style={[styles.repoBtnLabel, { color: textMuted }]}>
-                {allLinks.length} repos
+                Open in {allLinks[0].label} +{allLinks.length - 1}
               </Text>
               <ChevronDown size={12} color={textMuted} strokeWidth={1.8} />
             </Pressable>
