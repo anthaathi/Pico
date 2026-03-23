@@ -17,6 +17,7 @@ export default function AppLayout() {
   const hasToken = useAuthStore((s) => s.hasToken);
   const activateServer = useAuthStore((s) => s.activateServer);
   const fetchWorkspaces = useWorkspaceStore((s) => s.fetchWorkspaces);
+  const switchServer = useWorkspaceStore((s) => s.switchServer);
   const accessToken = useAuthStore((s) =>
     s.activeServerId ? s.tokens[s.activeServerId]?.accessToken ?? '' : '',
   );
@@ -67,18 +68,20 @@ export default function AppLayout() {
     }
 
     let cancelled = false;
-    activateServer(candidate).then((valid) => {
-      if (cancelled) return;
-      if (!valid) {
-        setStatus('no-server');
-        return;
-      }
-      fetchWorkspaces().then(() => {
-        if (!cancelled) setStatus('ready');
-      });
-    });
+    switchServer(candidate.id).then(() =>
+      activateServer(candidate).then((valid) => {
+        if (cancelled) return;
+        if (!valid) {
+          setStatus('no-server');
+          return;
+        }
+        fetchWorkspaces(candidate.id).then(() => {
+          if (!cancelled) setStatus('ready');
+        });
+      })
+    );
     return () => { cancelled = true; };
-  }, [serversLoaded, authLoaded, activeServerId, servers, hasToken, activateServer, fetchWorkspaces]);
+  }, [serversLoaded, authLoaded, activeServerId, servers, hasToken, activateServer, switchServer, fetchWorkspaces]);
 
   if (!serversLoaded || !authLoaded || status === 'loading') {
     return (

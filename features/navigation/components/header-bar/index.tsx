@@ -60,6 +60,7 @@ export function HeaderBar({
   const servers = useServersStore((s) => s.servers);
   const activeServer = servers.find((s) => s.id === activeServerId);
   const fetchWorkspaces = useWorkspaceStore((s) => s.fetchWorkspaces);
+  const switchServer = useWorkspaceStore((s) => s.switchServer);
   const appMode = useAppMode();
   const isCodeMode = appMode === "code";
 
@@ -119,9 +120,10 @@ export function HeaderBar({
         return;
       }
       setSwitchingId(server.id);
+      await switchServer(server.id);
       const ok = await activateServer(server);
       if (ok) {
-        await fetchWorkspaces();
+        await fetchWorkspaces(server.id);
         const { workspaces, selectedWorkspaceId } =
           useWorkspaceStore.getState();
         const targetId = selectedWorkspaceId ?? workspaces[0]?.id;
@@ -132,7 +134,7 @@ export function HeaderBar({
       setSwitchingId(null);
       setPopoverVisible(false);
     },
-    [activeServerId, activateServer, fetchWorkspaces, router],
+    [activeServerId, activateServer, switchServer, fetchWorkspaces, router],
   );
 
   const bg = colors.background;

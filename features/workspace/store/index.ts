@@ -9,51 +9,80 @@ import { WorkspaceColors } from '@/constants/theme';
 
 const SELECTED_WORKSPACE_KEY = 'selected_workspace_id';
 const LAST_SESSION_KEY = 'last_session_by_workspace';
+// Per-server keys use a suffix: selected_workspace_id:<serverId>
+const SERVER_SELECTED_KEY_PREFIX = 'selected_workspace_id:';
+const SERVER_SESSION_KEY_PREFIX = 'last_session_by_workspace:';
 
-async function readSelectedId(): Promise<string | null> {
+function serverSelectedKey(serverId: string) {
+  return `${SERVER_SELECTED_KEY_PREFIX}${serverId}`;
+}
+function serverSessionKey(serverId: string) {
+  return `${SERVER_SESSION_KEY_PREFIX}${serverId}`;
+}
+
+async function readStorageItem(key: string): Promise<string | null> {
   try {
     if (Platform.OS === 'web') {
-      return localStorage.getItem(SELECTED_WORKSPACE_KEY);
+      return localStorage.getItem(key);
     }
-    return await SecureStore.getItemAsync(SELECTED_WORKSPACE_KEY);
+    return await SecureStore.getItemAsync(key);
   } catch {
     return null;
   }
 }
 
-async function writeSelectedId(id: string | null) {
+async function writeStorageItem(key: string, value: string | null) {
   try {
     if (Platform.OS === 'web') {
-      if (id) localStorage.setItem(SELECTED_WORKSPACE_KEY, id);
-      else localStorage.removeItem(SELECTED_WORKSPACE_KEY);
+      if (value) localStorage.setItem(key, value);
+      else localStorage.removeItem(key);
     } else {
-      if (id) await SecureStore.setItemAsync(SELECTED_WORKSPACE_KEY, id);
-      else await SecureStore.deleteItemAsync(SELECTED_WORKSPACE_KEY);
+      if (value) await SecureStore.setItemAsync(key, value);
+      else await SecureStore.deleteItemAsync(key);
     }
   } catch {}
 }
 
-async function readLastSessionMap(): Promise<Record<string, string>> {
+async function readSelectedId(serverId?: string | null): Promise<string | null> {
+  if (serverId) {
+    const perServer = await readStorageItem(serverSelectedKey(serverId));
+    if (perServer) return perServer;
+  }
+  // Fallback to global key for migration
+  return readStorageItem(SELECTED_WORKSPACE_KEY);
+}
+
+async function writeSelectedId(id: string | null, serverId?: string | null) {
+  // Always write global for backward compat
+  await writeStorageItem(SELECTED_WORKSPACE_KEY, id);
+  // Also write per-server
+  if (serverId) {
+    await writeStorageItem(serverSelectedKey(serverId), id);
+  }
+}
+
+async function readLastSessionMap(serverId?: string | null): Promise<Record<string, string>> {
   try {
-    if (Platform.OS === 'web') {
-      const raw = localStorage.getItem(LAST_SESSION_KEY);
-      return raw ? JSON.parse(raw) : {};
+    let raw: string | null = null;
+    if (serverId) {
+      raw = await readStorageItem(serverSessionKey(serverId));
     }
-    const raw = await SecureStore.getItemAsync(LAST_SESSION_KEY);
+    if (!raw) {
+      // Fallback to global key for migration
+      raw = await readStorageItem(LAST_SESSION_KEY);
+    }
     return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
   }
 }
 
-async function writeLastSessionMap(map: Record<string, string>) {
-  try {
-    if (Platform.OS === 'web') {
-      localStorage.setItem(LAST_SESSION_KEY, JSON.stringify(map));
-      return;
-    }
-    await SecureStore.setItemAsync(LAST_SESSION_KEY, JSON.stringify(map));
-  } catch {}
+async function writeLastSessionMap(map: Record<string, string>, serverId?: string | null) {
+  const json = JSON.stringify(map);
+  await writeStorageItem(LAST_SESSION_KEY, json);
+  if (serverId) {
+    await writeStorageItem(serverSessionKey(serverId), json);
+  }
 }
 
 function mapApiWorkspace(ws: ApiWorkspace, index: number): Workspace {
@@ -98,10 +127,11 @@ interface WorkspaceState {
   selectedWorkspaceId: string | null;
   lastSessionByWorkspace: Record<string, string>;
   sessionWorkspaceById: Record<string, string>;
+  currentServerId: string | null;
   loading: boolean;
   error: string | null;
 
-  fetchWorkspaces: () => Promise<void>;
+  fetchWorkspaces: (serverId?: string | null) => Promise<void>;
   selectWorkspace: (id: string) => void;
   setLastSession: (workspaceId: string, sessionId: string) => void;
   getLastSession: (workspaceId: string) => string | null;
@@ -116,26 +146,26 @@ interface WorkspaceState {
   getWorkspaceForSession: (sessionId: string) => string | null;
   markWorkspaceNotification: (workspaceId: string) => void;
   clearWorkspaceNotification: (workspaceId: string) => void;
+  switchServer: (serverId: string | null) => Promise<void>;
 }
-
-let _restoredId: string | null = null;
-let _restoredLastSessionMap: Record<string, string> = {};
-const _restorePromise = Promise.all([
-  readSelectedId().then((id) => { _restoredId = id; }),
-  readLastSessionMap().then((map) => { _restoredLastSessionMap = map; }),
-]);
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   workspaces: [],
   selectedWorkspaceId: null,
   lastSessionByWorkspace: {},
   sessionWorkspaceById: {},
+  currentServerId: null,
   loading: false,
   error: null,
 
-  fetchWorkspaces: async () => {
-    await _restorePromise;
-    set({ loading: true, error: null, lastSessionByWorkspace: _restoredLastSessionMap });
+  fetchWorkspaces: async (serverId?: string | null) => {
+    const sid = serverId ?? get().currentServerId;
+    // Restore per-server state
+    const [restoredId, restoredSessionMap] = await Promise.all([
+      readSelectedId(sid),
+      readLastSessionMap(sid),
+    ]);
+    set({ loading: true, error: null, lastSessionByWorkspace: restoredSessionMap, currentServerId: sid });
     const result = await list();
     if (result.error) {
       set({ loading: false, error: 'Failed to fetch workspaces' });
@@ -143,22 +173,22 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     }
     const rawWorkspaces = unwrapApiData(result.data) ?? [];
     const workspaces = mergeWorkspaceUiState(rawWorkspaces, get().workspaces);
-    const currentSelected = get().selectedWorkspaceId ?? _restoredId;
+    const currentSelected = get().selectedWorkspaceId ?? restoredId;
     const selectedWorkspaceId =
       workspaces.find((w) => w.id === currentSelected)?.id ?? workspaces[0]?.id ?? null;
     set({ workspaces, selectedWorkspaceId, loading: false });
-    writeSelectedId(selectedWorkspaceId);
+    writeSelectedId(selectedWorkspaceId, sid);
   },
 
   selectWorkspace: (id) => {
     set({ selectedWorkspaceId: id });
-    writeSelectedId(id);
+    writeSelectedId(id, get().currentServerId);
   },
 
   setLastSession: (workspaceId, sessionId) => {
     const updated = { ...get().lastSessionByWorkspace, [workspaceId]: sessionId };
     set({ lastSessionByWorkspace: updated });
-    writeLastSessionMap(updated);
+    writeLastSessionMap(updated, get().currentServerId);
   },
 
   getLastSession: (workspaceId) => {
@@ -168,7 +198,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   clearLastSession: (workspaceId) => {
     const { [workspaceId]: _, ...rest } = get().lastSessionByWorkspace;
     set({ lastSessionByWorkspace: rest });
-    writeLastSessionMap(rest);
+    writeLastSessionMap(rest, get().currentServerId);
   },
 
   addWorkspace: async (workspace) => {
@@ -188,7 +218,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         workspaces: [...state.workspaces, ws],
         selectedWorkspaceId: ws.id,
       }));
-      writeSelectedId(ws.id);
+      writeSelectedId(ws.id, get().currentServerId);
     }
   },
 
@@ -206,7 +236,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
           state.selectedWorkspaceId === id
             ? (filtered[0]?.id ?? null)
             : state.selectedWorkspaceId;
-        writeSelectedId(selectedId);
+        writeSelectedId(selectedId, state.currentServerId);
         return {
           workspaces: filtered,
           selectedWorkspaceId: selectedId,
@@ -287,4 +317,22 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
       return changed ? { workspaces } : state;
     }),
+
+  switchServer: async (serverId: string | null) => {
+    if (serverId === get().currentServerId) return;
+    // Reset workspace state and load per-server persisted state
+    const [restoredId, restoredSessionMap] = await Promise.all([
+      readSelectedId(serverId),
+      readLastSessionMap(serverId),
+    ]);
+    set({
+      workspaces: [],
+      selectedWorkspaceId: restoredId,
+      lastSessionByWorkspace: restoredSessionMap,
+      sessionWorkspaceById: {},
+      currentServerId: serverId,
+      loading: false,
+      error: null,
+    });
+  },
 }));

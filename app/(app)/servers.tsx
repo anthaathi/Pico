@@ -616,8 +616,10 @@ export default function ServersScreen() {
   const [connecting, setConnecting] = useState<string | null>(null);
 
   const navigateAfterConnect = useCallback(async () => {
-    const { fetchWorkspaces } = useWorkspaceStore.getState();
-    await fetchWorkspaces();
+    const ws = useWorkspaceStore.getState();
+    const serverId = useAuthStore.getState().activeServerId;
+    await ws.switchServer(serverId);
+    await ws.fetchWorkspaces(serverId);
     const { workspaces, selectedWorkspaceId } = useWorkspaceStore.getState();
     const targetId = selectedWorkspaceId ?? workspaces[0]?.id;
     if (targetId) {
@@ -647,7 +649,8 @@ export default function ServersScreen() {
 
       if (connected) {
         const ws = useWorkspaceStore.getState();
-        await ws.fetchWorkspaces();
+        await ws.switchServer(server.id);
+        await ws.fetchWorkspaces(server.id);
         const { workspaces, selectedWorkspaceId } = useWorkspaceStore.getState();
         const targetId = selectedWorkspaceId ?? workspaces[0]?.id;
         if (targetId) {

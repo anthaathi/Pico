@@ -41,6 +41,7 @@ export default function AppIndex() {
 function VerifyAndRedirect({ server }: { server: Server }) {
   const activateServer = useAuthStore((s) => s.activateServer);
   const fetchWorkspaces = useWorkspaceStore((s) => s.fetchWorkspaces);
+  const switchServer = useWorkspaceStore((s) => s.switchServer);
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const selectedWorkspaceId = useWorkspaceStore((s) => s.selectedWorkspaceId);
 
@@ -48,18 +49,20 @@ function VerifyAndRedirect({ server }: { server: Server }) {
 
   useEffect(() => {
     let cancelled = false;
-    activateServer(server).then((valid) => {
-      if (cancelled) return;
-      if (!valid) {
-        setState('expired');
-        return;
-      }
-      fetchWorkspaces().then(() => {
-        if (!cancelled) setState('ready');
-      });
-    });
+    switchServer(server.id).then(() =>
+      activateServer(server).then((valid) => {
+        if (cancelled) return;
+        if (!valid) {
+          setState('expired');
+          return;
+        }
+        fetchWorkspaces(server.id).then(() => {
+          if (!cancelled) setState('ready');
+        });
+      })
+    );
     return () => { cancelled = true; };
-  }, [server, activateServer, fetchWorkspaces]);
+  }, [server, activateServer, switchServer, fetchWorkspaces]);
 
   if (state === 'expired') {
     return <Redirect href="/servers" />;
