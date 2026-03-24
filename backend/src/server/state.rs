@@ -1,5 +1,6 @@
 use std::sync::Arc;
-use tokio::sync::RwLock;
+
+use serde::{Deserialize, Serialize};
 
 use crate::config::AppConfig;
 use crate::db::Database;
@@ -8,7 +9,7 @@ use crate::services::pairing::PairingManager;
 use crate::services::port_scanner::PortScanner;
 use crate::services::task::TaskManager;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ActivePreview {
     pub session: String,
     pub hostname: String,
@@ -26,5 +27,4 @@ pub struct AppState {
     pub port_scanner: Arc<PortScanner>,
     pub http_client: reqwest::Client,
     pub instance_id: Arc<String>,
-    pub active_preview: Arc<RwLock<Option<ActivePreview>>>,
 }

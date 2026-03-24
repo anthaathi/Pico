@@ -1,15 +1,58 @@
 import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
 
+import { useAuthStore } from "@/features/auth/store";
+
 function log(...args: unknown[]) {
   console.log("[preview-sw-client]", ...args);
 }
 
 let swRegistered = false;
+let swBridgeBound = false;
+
+function bindPreviewServiceWorkerBridge() {
+  if (Platform.OS !== "web") return;
+  if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+  if (swBridgeBound) return;
+  swBridgeBound = true;
+
+  navigator.serviceWorker.addEventListener("message", async (event) => {
+    const data = event.data as
+      | {
+          type?: string;
+          requestId?: string;
+        }
+      | undefined;
+
+    if (!data || data.type !== "REQUEST_TOKEN_REFRESH" || !data.requestId) {
+      return;
+    }
+
+    const { activeServerId } = useAuthStore.getState();
+    let accessToken =
+      activeServerId ? useAuthStore.getState().tokens[activeServerId]?.accessToken : undefined;
+
+    if (activeServerId) {
+      log("service worker requested token refresh", data.requestId);
+      const refreshed = await useAuthStore.getState().refreshServerSession(activeServerId);
+      accessToken =
+        refreshed?.accessToken ?? useAuthStore.getState().tokens[activeServerId]?.accessToken;
+    }
+
+    const target =
+      (event.source as ServiceWorker | null) ?? navigator.serviceWorker.controller ?? null;
+    target?.postMessage({
+      type: "REFRESH_TOKEN_RESULT",
+      requestId: data.requestId,
+      accessToken,
+    });
+  });
+}
 
 export async function registerPreviewServiceWorker(): Promise<void> {
   if (Platform.OS !== "web") return;
   if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+  bindPreviewServiceWorkerBridge();
   if (swRegistered) return;
   swRegistered = true;
 
@@ -45,12 +88,14 @@ export function buildPreviewSrc(params: {
   return `${params.serverUrl}/?${qs.toString()}`;
 }
 
-export function updatePreviewToken(accessToken: string) {
+export async function updatePreviewToken(accessToken: string) {
   if (Platform.OS !== "web") return;
-  const controller = navigator.serviceWorker?.controller;
-  if (controller) {
-    controller.postMessage({ type: "UPDATE_TOKEN", accessToken });
-  }
+  if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+
+  const controller =
+    navigator.serviceWorker.controller ?? (await navigator.serviceWorker.ready).active ?? null;
+
+  controller?.postMessage({ type: "UPDATE_TOKEN", accessToken });
 }
 
 export function usePreviewServiceWorker() {
@@ -66,6 +111,6 @@ export function usePreviewServiceWorker() {
 export function usePreviewTokenSync(accessToken?: string) {
   useEffect(() => {
     if (Platform.OS !== "web" || !accessToken) return;
-    updatePreviewToken(accessToken);
+    void updatePreviewToken(accessToken);
   }, [accessToken]);
 }

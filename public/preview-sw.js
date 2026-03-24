@@ -1,9 +1,7 @@
-const PREVIEW_HEADER_SESSION = "X-Pi-Preview-Session";
-const PREVIEW_HEADER_HOSTNAME = "X-Pi-Preview-Hostname";
-const PREVIEW_HEADER_PORT = "X-Pi-Preview-Port";
 const PREVIEW_HEADER_AUTH = "X-Proxy-Authorization";
 
 const clientToPreview = new Map();
+const pendingRefreshRequests = new Map();
 
 function log(...args) {
   console.log("[preview-sw]", ...args);
@@ -20,16 +18,14 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("message", (event) => {
-  const { type, ...payload } = event.data;
+  const { type, ...payload } = event.data || {};
   log("message:", type);
 
   if (type === "SET_CONFIG") {
     const { sessionId, hostname, port, accessToken } = payload;
     const config = { sessionId, hostname, port, accessToken, serverUrl: self.location.origin };
     event.source && event.source.id && clientToPreview.set(event.source.id, config);
-    // Also set as default for any future clients
-    self.__defaultConfig = config;
-    log("SET_CONFIG stored:", hostname + ":" + port);
+    log("SET_CONFIG stored for client:", event.source && event.source.id, hostname + ":" + port);
     return;
   }
 
@@ -42,11 +38,20 @@ self.addEventListener("message", (event) => {
     return;
   }
 
+  if (type === "REFRESH_TOKEN_RESULT") {
+    const { requestId, accessToken } = payload;
+    const pending = pendingRefreshRequests.get(requestId);
+    if (pending) {
+      pendingRefreshRequests.delete(requestId);
+      pending(accessToken || null);
+    }
+    return;
+  }
+
   if (type === "PING") {
     if (event.ports && event.ports[0]) {
       event.ports[0].postMessage({ type: "PONG" });
     }
-    return;
   }
 });
 
@@ -55,16 +60,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
 
   if (url.origin !== self.location.origin) return;
-
-  if (
-    url.pathname.startsWith("/api/") ||
-    url.pathname.startsWith("/swagger-ui") ||
-    url.pathname === "/healthz" ||
-    url.pathname === "/version" ||
-    url.pathname === "/preview-sw.js"
-  ) {
-    return;
-  }
+  if (url.pathname === "/preview-sw.js") return;
 
   const piSession = url.searchParams.get("__pi_s");
   if (piSession) {
@@ -76,17 +72,16 @@ self.addEventListener("fetch", (event) => {
   const clientId = event.clientId || event.resultingClientId;
   if (clientId && clientToPreview.has(clientId)) {
     log("fetch: proxy for client", clientId, url.pathname + url.search);
-    event.respondWith(proxyRequest(event, clientToPreview.get(clientId), url));
+    event.respondWith(proxyRequest(event, clientToPreview.get(clientId), url, clientId));
     return;
   }
 
-  // Fallback: use default config for any request on this origin
-  if (self.__defaultConfig) {
-    log("fetch: proxy via defaultConfig", url.pathname + url.search);
-    if (clientId) {
-      clientToPreview.set(clientId, self.__defaultConfig);
-    }
-    event.respondWith(proxyRequest(event, self.__defaultConfig, url));
+  if (
+    url.pathname.startsWith("/api/") ||
+    url.pathname.startsWith("/swagger-ui") ||
+    url.pathname === "/healthz" ||
+    url.pathname === "/version"
+  ) {
     return;
   }
 });
@@ -125,27 +120,92 @@ async function handleInitialNavigation(event, url) {
   const cleanPath = cleanUrl.pathname;
   const cleanSearch = cleanUrl.search;
 
-  return doProxyFetch(config, cleanPath, cleanSearch, event.request, true);
+  return doProxyFetch(config, cleanPath, cleanSearch, event.request, true, clientId);
 }
 
-async function proxyRequest(event, config, url) {
-  return doProxyFetch(config, url.pathname, url.search, event.request, false);
+async function proxyRequest(event, config, url, clientId) {
+  return doProxyFetch(config, url.pathname, url.search, event.request, false, clientId);
 }
 
-async function doProxyFetch(config, pathname, search, originalRequest, isInitial) {
-  const targetUrl = pathname + (search || "");
+function buildProxyUrl(config, pathname, search) {
+  const normalizedPath = pathname
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
 
-  log("proxy →", targetUrl);
+  const base =
+    "/api/agent/sessions/" +
+    encodeURIComponent(config.sessionId) +
+    "/preview/" +
+    encodeURIComponent(config.hostname) +
+    "/" +
+    encodeURIComponent(String(config.port));
 
+  return base + (normalizedPath ? "/" + normalizedPath : "") + (search || "");
+}
+
+async function requestTokenRefresh(clientId, config) {
+  if (!clientId) return null;
+
+  const client = await self.clients.get(clientId);
+  if (!client) {
+    log("refresh: no client for", clientId);
+    return null;
+  }
+
+  const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const token = await new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      pendingRefreshRequests.delete(requestId);
+      resolve(null);
+    }, 10000);
+
+    pendingRefreshRequests.set(requestId, (accessToken) => {
+      clearTimeout(timeout);
+      resolve(accessToken || null);
+    });
+
+    client.postMessage({ type: "REQUEST_TOKEN_REFRESH", requestId });
+  });
+
+  if (token) {
+    config.accessToken = token;
+    clientToPreview.set(clientId, config);
+    log("refresh: received new token for client", clientId);
+  } else {
+    log("refresh: no token returned for client", clientId);
+  }
+
+  return token;
+}
+
+async function ensureAccessToken(clientId, config) {
+  if (config.accessToken) {
+    return config.accessToken;
+  }
+  return requestTokenRefresh(clientId, config);
+}
+
+async function sendProxyRequest(proxyUrl, originalRequest, config) {
   const headers = new Headers();
   for (const [key, value] of originalRequest.headers.entries()) {
-    if (key === "host" || key === "origin" || key === "referer") continue;
+    if (
+      key === "host" ||
+      key === "origin" ||
+      key === "referer" ||
+      key === "cookie" ||
+      key === "authorization" ||
+      key === "x-proxy-authorization" ||
+      key === "x-pi-preview-session" ||
+      key === "x-pi-preview-hostname" ||
+      key === "x-pi-preview-port"
+    ) {
+      continue;
+    }
     headers.set(key, value);
   }
 
-  headers.set(PREVIEW_HEADER_SESSION, config.sessionId);
-  headers.set(PREVIEW_HEADER_HOSTNAME, config.hostname);
-  headers.set(PREVIEW_HEADER_PORT, String(config.port));
   if (config.accessToken) {
     headers.set(PREVIEW_HEADER_AUTH, "Bearer " + config.accessToken);
   }
@@ -155,13 +215,31 @@ async function doProxyFetch(config, pathname, search, originalRequest, isInitial
     body = await originalRequest.arrayBuffer();
   }
 
+  return fetch(proxyUrl, {
+    method: originalRequest.method,
+    headers,
+    body,
+    redirect: "manual",
+  });
+}
+
+async function doProxyFetch(config, pathname, search, originalRequest, isInitial, clientId) {
+  const targetUrl = pathname + (search || "");
+  const proxyUrl = buildProxyUrl(config, pathname, search);
+
+  log("proxy →", targetUrl, "via", proxyUrl);
+
+  await ensureAccessToken(clientId, config);
+
   try {
-    const response = await fetch(targetUrl, {
-      method: originalRequest.method,
-      headers,
-      body,
-      redirect: "manual",
-    });
+    let response = await sendProxyRequest(proxyUrl, originalRequest, config);
+
+    if (response.status === 401) {
+      const refreshed = await requestTokenRefresh(clientId, config);
+      if (refreshed) {
+        response = await sendProxyRequest(proxyUrl, originalRequest, config);
+      }
+    }
 
     log("proxy response:", response.status, "for", pathname);
 

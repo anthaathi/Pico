@@ -8,6 +8,7 @@ use crate::routes::agent::header_based_preview_proxy;
 use crate::server::state::{ActivePreview, AppState};
 
 const PREVIEW_SW_JS: &str = include_str!("../../../public/preview-sw.js");
+const PREVIEW_COOKIE_NAME: &str = "pi_active_preview";
 
 pub async fn serve_preview_sw() -> Response<axum::body::Body> {
     Response::builder()
@@ -18,12 +19,12 @@ pub async fn serve_preview_sw() -> Response<axum::body::Body> {
         .unwrap()
 }
 
-fn extract_config_from_query(uri: &Uri) -> Option<ActivePreview> {
-    let query = uri.query()?;
+fn extract_config_from_query_string(query: &str) -> Option<ActivePreview> {
     let mut session = None;
     let mut hostname = None;
     let mut port = None;
     let mut token = None;
+
     for pair in query.split('&') {
         let mut kv = pair.splitn(2, '=');
         let key = kv.next()?;
@@ -36,12 +37,58 @@ fn extract_config_from_query(uri: &Uri) -> Option<ActivePreview> {
             _ => {}
         }
     }
+
     Some(ActivePreview {
         session: session?,
         hostname: hostname.unwrap_or_else(|| "localhost".into()),
         port: port?,
         token: token.unwrap_or_default(),
     })
+}
+
+fn extract_config_from_query(uri: &Uri) -> Option<ActivePreview> {
+    extract_config_from_query_string(uri.query()?)
+}
+
+fn extract_config_from_referer(headers: &HeaderMap) -> Option<ActivePreview> {
+    let referer = headers.get(header::REFERER)?.to_str().ok()?;
+    let query = referer.split_once('?')?.1.split('#').next().unwrap_or("");
+    extract_config_from_query_string(query)
+}
+
+fn extract_config_from_cookie(headers: &HeaderMap) -> Option<ActivePreview> {
+    let cookie = headers.get(header::COOKIE)?.to_str().ok()?;
+
+    for part in cookie.split(';') {
+        let trimmed = part.trim();
+        let Some((name, value)) = trimmed.split_once('=') else {
+            continue;
+        };
+        if name != PREVIEW_COOKIE_NAME {
+            continue;
+        }
+
+        let decoded = urlencoding::decode(value).ok()?;
+        let config: ActivePreview = serde_json::from_str(decoded.as_ref()).ok()?;
+        return Some(config);
+    }
+
+    None
+}
+
+fn build_preview_cookie_header(config: &ActivePreview) -> Option<HeaderValue> {
+    let json = serde_json::to_string(config).ok()?;
+    let encoded = urlencoding::encode(&json);
+    HeaderValue::from_str(&format!(
+        "{PREVIEW_COOKIE_NAME}={encoded}; Path=/; HttpOnly; SameSite=Lax"
+    ))
+    .ok()
+}
+
+fn clear_preview_cookie_header() -> HeaderValue {
+    HeaderValue::from_static(
+        "pi_active_preview=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax",
+    )
 }
 
 fn inject_preview_headers(headers: &mut HeaderMap, config: &ActivePreview) {
@@ -61,6 +108,26 @@ fn inject_preview_headers(headers: &mut HeaderMap, config: &ActivePreview) {
     }
 }
 
+fn is_fresh_navigation_without_preview_context(method: &Method, headers: &HeaderMap) -> bool {
+    if method != Method::GET {
+        return false;
+    }
+
+    let has_referer = headers.contains_key(header::REFERER);
+    let sec_fetch_dest = headers
+        .get(HeaderName::from_static("sec-fetch-dest"))
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let sec_fetch_mode = headers
+        .get(HeaderName::from_static("sec-fetch-mode"))
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    !has_referer
+        && (sec_fetch_dest.is_empty() || sec_fetch_dest == "document")
+        && (sec_fetch_mode.is_empty() || sec_fetch_mode == "navigate")
+}
+
 async fn try_preview_proxy(
     state: AppState,
     method: Method,
@@ -74,28 +141,48 @@ async fn try_preview_proxy(
     }
 
     let from_query = extract_config_from_query(&uri);
-    let is_initial = from_query.is_some();
-
-    let config = if let Some(cfg) = from_query {
-        *state.active_preview.write().await = Some(cfg.clone());
-        tracing::info!("[fallback] preview via query: {}:{} uri={}", cfg.hostname, cfg.port, uri);
-        cfg
+    let from_referer = if from_query.is_none() {
+        extract_config_from_referer(&headers)
     } else {
-        let stored = state.active_preview.read().await;
-        match stored.as_ref() {
-            Some(cfg) => {
-                tracing::info!("[fallback] preview via stored config: {}:{} uri={}", cfg.hostname, cfg.port, uri);
-                cfg.clone()
-            }
-            None => return None,
-        }
+        None
     };
+    let from_cookie = if from_query.is_none()
+        && from_referer.is_none()
+        && !is_fresh_navigation_without_preview_context(&method, &headers)
+    {
+        extract_config_from_cookie(&headers)
+    } else {
+        None
+    };
+
+    let (config, source) = if let Some(cfg) = from_query {
+        (cfg, "query")
+    } else if let Some(cfg) = from_referer {
+        (cfg, "referer")
+    } else if let Some(cfg) = from_cookie {
+        (cfg, "cookie")
+    } else {
+        return None;
+    };
+
+    tracing::info!(
+        "[fallback] preview via {}: {}:{} uri={}",
+        source,
+        config.hostname,
+        config.port,
+        uri
+    );
 
     inject_preview_headers(&mut headers, &config);
 
+    let is_initial = source == "query";
     let mut response = header_based_preview_proxy(state, headers, method, uri, body).await?;
 
     if is_initial {
+        if let Some(cookie) = build_preview_cookie_header(&config) {
+            response.headers_mut().append(header::SET_COOKIE, cookie);
+        }
+
         let ct = response
             .headers()
             .get(header::CONTENT_TYPE)
@@ -122,7 +209,9 @@ async fn try_preview_proxy(
                     format!("{}{}", script, html)
                 };
                 response.headers_mut().remove(header::CONTENT_LENGTH);
-                response.headers_mut().remove(HeaderName::from_static("content-encoding"));
+                response
+                    .headers_mut()
+                    .remove(HeaderName::from_static("content-encoding"));
                 *response.body_mut() = axum::body::Body::from(injected.into_bytes());
             }
         }
@@ -141,7 +230,7 @@ mod embed {
     };
     use rust_embed::Embed;
 
-    use super::try_preview_proxy;
+    use super::{clear_preview_cookie_header, try_preview_proxy};
     use crate::server::state::AppState;
 
     #[derive(Embed)]
@@ -158,7 +247,11 @@ mod embed {
         if let Some(response) = try_preview_proxy(state, method.clone(), uri.clone(), headers, body).await {
             return response;
         }
-        serve_web(uri).await.into_response()
+        let mut response = serve_web(uri).await.into_response();
+        response
+            .headers_mut()
+            .append(header::SET_COOKIE, clear_preview_cookie_header());
+        response
     }
 
     async fn serve_web(uri: Uri) -> impl IntoResponse {
@@ -198,11 +291,11 @@ mod embed {
     use axum::{
         body::Bytes,
         extract::State,
-        http::{HeaderMap, Method, StatusCode, Uri},
+        http::{header, HeaderMap, Method, StatusCode, Uri},
         response::{IntoResponse, Response},
     };
 
-    use super::try_preview_proxy;
+    use super::{clear_preview_cookie_header, try_preview_proxy};
     use crate::server::state::AppState;
 
     pub async fn fallback_or_preview(
@@ -215,7 +308,12 @@ mod embed {
         if let Some(response) = try_preview_proxy(state, method, uri, headers, body).await {
             return response;
         }
-        (StatusCode::NOT_FOUND, "Web UI only available in release builds.\n").into_response()
+        let mut response = (StatusCode::NOT_FOUND, "Web UI only available in release builds.\n")
+            .into_response();
+        response
+            .headers_mut()
+            .append(header::SET_COOKIE, clear_preview_cookie_header());
+        response
     }
 }
 

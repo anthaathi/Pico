@@ -103,7 +103,6 @@ pub async fn serve(cli: Cli, force_qr: bool) -> anyhow::Result<()> {
         port_scanner,
         http_client: reqwest::Client::new(),
         instance_id,
-        active_preview: Arc::new(tokio::sync::RwLock::new(None)),
     };
 
     let app = build_app(state);

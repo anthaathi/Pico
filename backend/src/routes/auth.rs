@@ -255,6 +255,7 @@ pub async fn pair(
 pub fn extract_token(headers: &axum::http::HeaderMap) -> Option<String> {
     headers
         .get("authorization")
+        .or_else(|| headers.get("x-proxy-authorization"))
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
         .map(|s| s.to_string())
