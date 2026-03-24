@@ -2,6 +2,9 @@ import { Subject, BehaviorSubject, Observable } from "rxjs";
 import type { StreamEventEnvelope } from "../types/stream-events";
 import { XhrEventSource } from "./event-source";
 
+const RECONNECT_BASE_MS = 1000;
+const RECONNECT_MAX_MS = 30_000;
+
 export type SessionStreamStatus = "idle" | "connecting" | "loading_history" | "connected" | "disconnected";
 
 export interface SessionStreamState {
@@ -12,6 +15,10 @@ export interface SessionStreamState {
 export interface SessionStreamConfig {
   serverUrl: string;
   getAccessToken: () => string;
+  getResumeCursor?: (sessionId: string) => string | undefined;
+  onAuthError?: () => void;
+  reconnectBaseMs?: number;
+  reconnectMaxMs?: number;
 }
 
 function isStreamEventPayload(value: object): boolean {
@@ -38,6 +45,12 @@ export class SessionStreamConnection {
   private readonly _config: SessionStreamConfig;
   private _es: XhrEventSource | null = null;
   private _sessionId: string | null = null;
+  private _lastMessageId: string | undefined;
+  private _before: string | undefined;
+  private _limit: number | undefined;
+  private _retryCount = 0;
+  private _autoReconnect = true;
+  private _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private _destroyed = false;
 
   constructor(config: SessionStreamConfig) {
@@ -68,24 +81,47 @@ export class SessionStreamConnection {
     return this._sessionId;
   }
 
-  connect(sessionId: string, lastMessageId?: string, before?: string, limit?: number): void {
+  connect(
+    sessionId: string,
+    lastMessageId?: string,
+    before?: string,
+    limit?: number,
+    autoReconnect = true,
+  ): void {
     if (this._destroyed) return;
 
+    this._clearReconnectTimer();
     this._close();
     this._sessionId = sessionId;
+    this._lastMessageId = lastMessageId;
+    this._before = before;
+    this._limit = limit;
+    this._retryCount = 0;
+    this._autoReconnect = autoReconnect;
     this._setState({ status: "connecting", sessionId });
-    this._openSse(sessionId, lastMessageId, before, limit);
+    this._openSse(sessionId);
   }
 
   disconnect(): void {
     if (__DEV__) console.log("[pi:sess-stream]", "disconnect", this._sessionId);
+    this._clearReconnectTimer();
     this._close();
     this._sessionId = null;
     this._setState({ status: "idle", sessionId: null });
   }
 
+  reconnect(): void {
+    if (this._destroyed || !this._sessionId) return;
+    this._clearReconnectTimer();
+    this._close();
+    this._retryCount = 0;
+    this._setState({ status: "connecting", sessionId: this._sessionId });
+    this._openSse(this._sessionId);
+  }
+
   destroy(): void {
     this._destroyed = true;
+    this._clearReconnectTimer();
     this._close();
     this._events$.complete();
     this._historyEvents$.complete();
@@ -93,10 +129,10 @@ export class SessionStreamConnection {
     this._state$.complete();
   }
 
-  private _openSse(sessionId: string, lastMessageId?: string, before?: string, limit?: number): void {
+  private _openSse(sessionId: string): void {
     if (this._destroyed) return;
 
-    const url = this._buildUrl(sessionId, lastMessageId, before, limit);
+    const url = this._buildUrl(sessionId);
     const token = this._config.getAccessToken();
 
     const es = new XhrEventSource(url, {
@@ -111,6 +147,7 @@ export class SessionStreamConnection {
         es.close();
         return;
       }
+      this._retryCount = 0;
       this._setState({ status: "loading_history", sessionId });
     });
 
@@ -164,16 +201,22 @@ export class SessionStreamConnection {
       this._historyDone$.next();
     });
 
-    es.addEventListener("error", () => {
+    es.addEventListener("error", (event) => {
       if (this._destroyed || this._sessionId !== sessionId) return;
+      const status = event.xhrStatus ?? 0;
       this._close();
-      this._setState({ status: "disconnected", sessionId });
+      if (status === 401 || status === 403) {
+        this._setState({ status: "disconnected", sessionId });
+        this._config.onAuthError?.();
+        return;
+      }
+      this._scheduleReconnect(sessionId);
     });
 
     es.addEventListener("close", () => {
       if (this._destroyed || this._sessionId !== sessionId) return;
       this._close();
-      this._setState({ status: "disconnected", sessionId });
+      this._scheduleReconnect(sessionId);
     });
   }
 
@@ -189,16 +232,51 @@ export class SessionStreamConnection {
     this._state$.next(state);
   }
 
-  private _buildUrl(sessionId: string, lastMessageId?: string, before?: string, limit?: number): string {
+  private _scheduleReconnect(sessionId: string): void {
+    if (this._destroyed || !this._autoReconnect) {
+      this._setState({ status: "disconnected", sessionId });
+      return;
+    }
+    if (this._reconnectTimer) return;
+
+    this._retryCount += 1;
+    const baseMs = this._config.reconnectBaseMs ?? RECONNECT_BASE_MS;
+    const maxMs = this._config.reconnectMaxMs ?? RECONNECT_MAX_MS;
+    const delay = Math.min(baseMs * Math.pow(2, Math.max(0, this._retryCount - 1)), maxMs);
+    this._setState({ status: "disconnected", sessionId });
+    this._reconnectTimer = setTimeout(() => {
+      this._reconnectTimer = null;
+      if (this._destroyed || this._sessionId !== sessionId) return;
+      this._setState({ status: "connecting", sessionId });
+      this._openSse(sessionId);
+    }, delay);
+  }
+
+  private _clearReconnectTimer(): void {
+    if (this._reconnectTimer) {
+      clearTimeout(this._reconnectTimer);
+      this._reconnectTimer = null;
+    }
+  }
+
+  private _resolveLastMessageId(sessionId: string): string | undefined {
+    if (this._retryCount > 0 && !this._before) {
+      return this._config.getResumeCursor?.(sessionId) ?? this._lastMessageId;
+    }
+    return this._lastMessageId;
+  }
+
+  private _buildUrl(sessionId: string): string {
     const url = new URL(`${this._config.serverUrl}/api/stream/${encodeURIComponent(sessionId)}`);
+    const lastMessageId = this._resolveLastMessageId(sessionId);
     if (lastMessageId) {
       url.searchParams.set("last_message_id", lastMessageId);
     }
-    if (before) {
-      url.searchParams.set("before", before);
+    if (this._before) {
+      url.searchParams.set("before", this._before);
     }
-    if (limit) {
-      url.searchParams.set("limit", String(limit));
+    if (this._limit) {
+      url.searchParams.set("limit", String(this._limit));
     }
     return url.toString();
   }

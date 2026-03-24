@@ -37,6 +37,13 @@ function extractTextFromContent(content: unknown[] | undefined): string {
     .join("");
 }
 
+function extractMessageEntryId(msg: Record<string, unknown>): string | undefined {
+  const rawId = msg["entryId"] ?? msg["entry_id"] ?? msg["id"] ?? msg["messageId"];
+  if (typeof rawId === "string" && rawId.trim()) return rawId;
+  if (typeof rawId === "number" && Number.isFinite(rawId)) return String(rawId);
+  return undefined;
+}
+
 function isModeSlashCommand(message: string): boolean {
   const first = message.trim().split(/\s+/)[0];
   return first === "/chat" || first === "/plan";
@@ -103,7 +110,7 @@ export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnve
       const endData = event as unknown as Record<string, unknown>;
       if (Array.isArray(endData["messages"])) {
         const authoritative = convertRawMessages(endData["messages"] as Record<string, string>[]);
-        if (authoritative.length > messages.length) {
+        if (authoritative.length > 0 && authoritative.length >= messages.length) {
           messages = authoritative;
         }
       }
@@ -123,6 +130,7 @@ export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnve
         } else {
           messages = [...messages, {
             id: newId,
+            entryId: extractMessageEntryId(msg as unknown as Record<string, unknown>),
             role: "assistant",
             text: "",
             thinking: "",
@@ -186,6 +194,7 @@ export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnve
         updated.provider = msg.provider ?? updated.provider;
         updated.api = msg.api ?? updated.api;
         updated.responseId = msg.responseId ?? updated.responseId;
+        updated.entryId = extractMessageEntryId(msg as unknown as Record<string, unknown>) ?? updated.entryId;
         updated.usage = extractUsage(msg as unknown as Record<string, unknown>) ?? updated.usage;
       } else {
         switch (delta.type) {
@@ -271,6 +280,7 @@ export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnve
         const updated: ChatMessage = {
           ...msg,
           isStreaming: false,
+          entryId: extractMessageEntryId(endMsg ?? {}) ?? msg.entryId,
           stopReason: endMsg?.["stopReason"] as ChatMessage["stopReason"] ?? msg.stopReason,
           errorMessage: (endMsg?.["errorMessage"] as string) ?? msg.errorMessage,
           provider: (endMsg?.["provider"] as string) ?? msg.provider,
@@ -445,7 +455,13 @@ function convertSingleMessage(msg: Record<string, unknown>, index: number): Chat
   if (role === "user") {
     const content = msg["content"];
     const text = typeof content === "string" ? content : extractTextFromContent(content as unknown[] | undefined);
-    return { id: stableId(msg, "user", index), role: "user", text, timestamp: parseTimestamp(msg["timestamp"]) };
+    return {
+      id: stableId(msg, "user", index),
+      entryId: extractMessageEntryId(msg),
+      role: "user",
+      text,
+      timestamp: parseTimestamp(msg["timestamp"]),
+    };
   }
 
   if (role === "assistant") {
@@ -463,6 +479,7 @@ function convertSingleMessage(msg: Record<string, unknown>, index: number): Chat
 
     return {
       id: stableId(msg, "assistant", index),
+      entryId: extractMessageEntryId(msg),
       role: "assistant",
       text,
       errorMessage: errorMsg(msg),

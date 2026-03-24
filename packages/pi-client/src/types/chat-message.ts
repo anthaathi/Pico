@@ -43,6 +43,7 @@ export interface MessageUsageInfo {
 
 export interface ChatMessage {
   id: string;
+  entryId?: string;
   role: "user" | "assistant" | "system";
   text: string;
   errorMessage?: string;

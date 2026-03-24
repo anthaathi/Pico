@@ -82,6 +82,15 @@ export class PiClient {
 
   reconnect(): void {
     this._stream.reconnect();
+    if (!this._viewedSessionId) return;
+    const sessionStream = this._sessionStreams.get(this._viewedSessionId);
+    if (sessionStream) {
+      if (sessionStream.stateSnapshot.status !== "connected") {
+        sessionStream.reconnect();
+      }
+      return;
+    }
+    this._ensureSessionStream(this._viewedSessionId);
   }
 
   get serverRestart$(): Observable<void> {
@@ -103,6 +112,11 @@ export class PiClient {
   updateToken(accessToken: string): void {
     (this._config as { accessToken: string }).accessToken = accessToken;
     this.api.updateToken(accessToken);
+    for (const stream of this._sessionStreams.values()) {
+      if (stream.stateSnapshot.status === "disconnected") {
+        stream.reconnect();
+      }
+    }
   }
 
   get events$(): Observable<StreamEventEnvelope> {
@@ -255,7 +269,7 @@ export class PiClient {
           resolve(null);
         });
 
-        temp.connect(sessionId, undefined, current.oldestEntryId ?? undefined, limit);
+        temp.connect(sessionId, undefined, current.oldestEntryId ?? undefined, limit, false);
       });
 
       if (result) {
@@ -424,6 +438,17 @@ export class PiClient {
 
   private _knownStreamSessionIds = new Set<string>();
 
+  private _getSessionResumeCursor(sessionId: string): string | undefined {
+    const messages = this._getOrCreateSessionSubject(sessionId).getValue().messages;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const entryId = messages[i]?.entryId;
+      if (entryId) {
+        return entryId;
+      }
+    }
+    return messages.length > 0 ? "SKIP_HISTORY" : undefined;
+  }
+
   private _isSessionStreamActive(sessionId: string): boolean {
     const stream = this._sessionStreams.get(sessionId);
     return !!stream && stream.stateSnapshot.status === "connected";
@@ -585,6 +610,10 @@ export class PiClient {
       stream = new SessionStreamConnection({
         serverUrl: this._config.serverUrl,
         getAccessToken: () => this._config.accessToken,
+        getResumeCursor: (activeSessionId) => this._getSessionResumeCursor(activeSessionId),
+        onAuthError: this._config.onAuthError,
+        reconnectBaseMs: this._config.reconnectBaseMs,
+        reconnectMaxMs: this._config.reconnectMaxMs,
       });
 
       stream.historyEvents$.subscribe((envelope) => {
