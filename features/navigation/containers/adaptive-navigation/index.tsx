@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -23,6 +23,7 @@ import { HeaderBar } from "../../components/header-bar";
 import { MobileHeaderBar } from "../../components/mobile-header-bar";
 import { WorkspaceSheet } from "../../components/workspace-sheet";
 import { MobileChangesSheet } from "../../components/mobile-changes-sheet";
+import { MobilePreviewSheet } from "../../components/mobile-preview-sheet";
 import { SessionSidebar } from "@/features/workspace/components/session-sidebar";
 import { useAuthStore } from "@/features/auth/store";
 import { useWorkspaceStore } from "@/features/workspace/store";
@@ -58,6 +59,7 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
   const showSessions = hasServer && hasWorkspaces;
   const [sheetVisible, setSheetVisible] = useState(false);
   const [changesSheetVisible, setChangesSheetVisible] = useState(false);
+  const [previewSheetVisible, setPreviewSheetVisible] = useState(false);
   const [chatSheetVisible, setChatSheetVisible] = useState(false);
   const [tasksSheetVisible, setTasksSheetVisible] = useState(false);
   const [taskOutputSheetVisible, setTaskOutputSheetVisible] = useState(false);
@@ -165,7 +167,10 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
   }, [isPersistent]);
 
   const router = useRouter();
+  const pathname = usePathname();
   const chatSelectSession = useChatStore((s) => s.selectSession);
+  const mobilePreviewSessionMatch = pathname.match(/^\/workspace\/[^/]+\/s\/([^/]+)$/);
+  const mobilePreviewSessionId = mobilePreviewSessionMatch?.[1] ?? null;
 
   const handleChatNewSession = useCallback(() => {
     chatSelectSession(null);
@@ -384,7 +389,14 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
         {hasServer && (
           <MobileHeaderBar
             onWorkspacePress={() => setSheetVisible(true)}
-            onGitPress={() => setChangesSheetVisible(true)}
+            onGitPress={() => {
+              setPreviewSheetVisible(false);
+              setChangesSheetVisible(true);
+            }}
+            onPreviewPress={() => {
+              setChangesSheetVisible(false);
+              setPreviewSheetVisible(true);
+            }}
             onChatSessionsPress={() => setChatSheetVisible(true)}
             onTasksPress={() => setTasksSheetVisible(true)}
             onTaskOutputPress={() => setTaskOutputSheetVisible(true)}
@@ -402,10 +414,17 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
             onClose={() => setSheetVisible(false)}
           />
           {hasWorkspaces && (
-            <MobileChangesSheet
-              visible={changesSheetVisible}
-              onClose={() => setChangesSheetVisible(false)}
-            />
+            <>
+              <MobileChangesSheet
+                visible={changesSheetVisible}
+                onClose={() => setChangesSheetVisible(false)}
+              />
+              <MobilePreviewSheet
+                visible={previewSheetVisible}
+                onClose={() => setPreviewSheetVisible(false)}
+                sessionId={mobilePreviewSessionId}
+              />
+            </>
           )}
         </>
       )}

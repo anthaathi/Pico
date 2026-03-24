@@ -18,6 +18,7 @@ interface DraftState {
   addAttachment: (key: string, attachment: Attachment) => void;
   removeAttachment: (key: string, attachmentId: string) => void;
   clearDraft: (key: string) => void;
+  migrateDraft: (fromKey: string, toKey: string) => void;
 }
 
 export const useDraftStore = create<DraftState>((set, get) => ({
@@ -72,5 +73,15 @@ export const useDraftStore = create<DraftState>((set, get) => ({
     set((state) => {
       const { [key]: _, ...rest } = state.drafts;
       return { drafts: rest };
+    }),
+
+  migrateDraft: (fromKey, toKey) =>
+    set((state) => {
+      const existing = state.drafts[fromKey];
+      if (!existing || (existing.text === '' && existing.attachments.length === 0)) {
+        return state;
+      }
+      const { [fromKey]: _, ...rest } = state.drafts;
+      return { drafts: { ...rest, [toKey]: existing } };
     }),
 }));

@@ -20,8 +20,6 @@ export interface GitStatusState {
   isCommitting: boolean;
 }
 
-const POLL_INTERVAL = 10_000;
-
 const INITIAL_STATE: GitStatusState = {
   data: null,
   isLoading: true,
@@ -41,9 +39,9 @@ export interface GitStatusHandle extends GitStatusState {
 }
 
 export function useGitStatus(cwd: string | null): GitStatusHandle {
-  const { api } = usePiClient();
+  const client = usePiClient();
+  const { api } = client;
   const state$ = useRef(new BehaviorSubject<GitStatusState>(INITIAL_STATE));
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cwdRef = useRef(cwd);
   cwdRef.current = cwd;
 
@@ -95,15 +93,15 @@ export function useGitStatus(cwd: string | null): GitStatusHandle {
 
     fetchStatus();
 
-    timerRef.current = setInterval(() => {
+    const sub = client.fileSystemChanged$.subscribe(() => {
       emit({ isRefetching: true });
       fetchStatus();
-    }, POLL_INTERVAL);
+    });
 
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      sub.unsubscribe();
     };
-  }, [cwd, fetchStatus, emit]);
+  }, [cwd, client, fetchStatus, emit]);
 
   const refresh = useCallback(() => {
     emit({ isRefetching: true });

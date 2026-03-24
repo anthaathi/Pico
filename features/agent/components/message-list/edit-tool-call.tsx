@@ -7,7 +7,7 @@ import { useResponsiveLayout } from "@/features/navigation/hooks/use-responsive-
 import { useAppSettingsStore, type DiffViewMode } from "@/features/settings/store";
 import type { ToolCallInfo } from "../../types";
 import { getToolStatusLabel, isToolCallActive, parseToolArguments } from "./tool-call-utils";
-import { useIsMessageVisible } from "./visibility-context";
+import { useIsMessageVisible, useMobileDiffSheet } from "./visibility-context";
 import { animateLayout, basename, countLines, sharedStyles as styles } from "./tool-call-shared";
 import {
   SplitDiffView,
@@ -17,7 +17,6 @@ import {
   editStyles,
   simpleDiff,
 } from "./code-preview";
-import { DiffBottomSheet } from "./diff-bottom-sheet";
 import { useDiffPanel, useAutoOpenDiffTab, type DiffTab } from "../diff-panel/context";
 
 export function EditToolCall({ tc }: { tc: ToolCallInfo }) {
@@ -27,7 +26,7 @@ export function EditToolCall({ tc }: { tc: ToolCallInfo }) {
   const isRunning = isToolCallActive(tc);
   const isVisible = useIsMessageVisible();
   const statusLabel = getToolStatusLabel(tc);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const mobileDiffSheet = useMobileDiffSheet();
   const diffViewMode = useAppSettingsStore((s) => s.diffViewMode);
   const updateSettings = useAppSettingsStore((s) => s.update);
   const viewMode = diffViewMode;
@@ -54,7 +53,7 @@ export function EditToolCall({ tc }: { tc: ToolCallInfo }) {
   const usesSidebar = isWideScreen && hasDiffPanel;
   const isActiveInSidebar = usesSidebar && (diffPanel.activeTabId === tc.id || diffPanel.activeTabId === tab?.id);
 
-  useAutoOpenDiffTab(usesSidebar ? tab : null, isRunning, isWideScreen);
+  useAutoOpenDiffTab(tab, isRunning);
 
   const [expanded, setExpanded] = useState(!usesSidebar && isWideScreen && isRunning);
 
@@ -100,7 +99,7 @@ export function EditToolCall({ tc }: { tc: ToolCallInfo }) {
     <View>
       <Pressable style={styles.row} onPress={() => {
         if (!isWideScreen) {
-          setSheetOpen(true);
+          mobileDiffSheet.open(tab?.id ?? undefined);
         } else if (usesSidebar && tab) {
           diffPanel.selectTab(tab);
         } else {
@@ -125,16 +124,6 @@ export function EditToolCall({ tc }: { tc: ToolCallInfo }) {
           : <ChevronRight size={13} color={mutedColor} strokeWidth={1.8} />
         }
       </Pressable>
-
-      {!isWideScreen && sheetOpen && (
-        <DiffBottomSheet
-          visible
-          onClose={() => setSheetOpen(false)}
-          title={`Edit ${fileName}`}
-          path={path}
-          ops={ops}
-        />
-      )}
 
       {!usesSidebar && isWideScreen && expanded && isVisible && (hasData || isRunning) && (
         <View

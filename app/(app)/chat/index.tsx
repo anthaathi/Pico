@@ -16,9 +16,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useResponsiveLayout } from '@/features/navigation/hooks/use-responsive-layout';
 import { PromptInput } from '@/features/workspace/components/prompt-input';
 import { WorkspaceHero } from '@/features/workspace/components/workspace-hero';
-import { usePiClient } from '@pi-ui/client';
+import { useChatSessions, usePiClient } from '@pi-ui/client';
 import { useChatStore } from '@/features/chat/store';
-import { useChatSessions } from '@pi-ui/client';
 import { useWorkspaceStore } from '@/features/workspace/store';
 
 export default function ChatIndexScreen() {

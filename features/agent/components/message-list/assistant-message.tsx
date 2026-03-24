@@ -790,7 +790,9 @@ function AssistantMessageComponent({
               const isLast = message.isStreaming && i === markdownElements.length - 1;
               return isLast ? (
                 <Animated.View key={i} style={[styles.markdownBlock, lastBlockFadeStyle, styles.lastBlockRow]}>
-                  {el}
+                  <View style={styles.lastBlockContent}>
+                    {el}
+                  </View>
                   {!hasToolCalls && <StreamingCursor />}
                 </Animated.View>
               ) : (
@@ -1029,8 +1031,11 @@ const styles = StyleSheet.create({
   },
   lastBlockRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
     alignItems: "flex-end",
+  },
+  lastBlockContent: {
+    flex: 1,
+    minWidth: 0,
   },
 
   cursorWrap: {

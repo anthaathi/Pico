@@ -147,6 +147,22 @@ export function isToolCallActive(
   );
 }
 
+export type ParsedBashCommand = {
+  cwd: string | null;
+  command: string;
+};
+
+const CD_PREFIX_RE = /^cd\s+((?:"[^"]*"|'[^']*'|\S)+)\s*&&\s*/;
+
+export function parseBashCommand(raw: string): ParsedBashCommand {
+  const match = raw.match(CD_PREFIX_RE);
+  if (!match) return { cwd: null, command: raw };
+
+  const cwd = match[1]!.replace(/^["']|["']$/g, "");
+  const command = raw.slice(match[0].length);
+  return { cwd, command };
+}
+
 export function getToolStatusLabel(
   toolCall: Pick<ToolCallInfo, "name" | "status">,
 ): string | null {

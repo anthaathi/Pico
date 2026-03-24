@@ -21,6 +21,7 @@ use crate::services::agent::AgentManager;
 use crate::services::provider::PiAgentProvider;
 use crate::services::connection::ConnectionInfo;
 use crate::services::pairing::PairingManager;
+use crate::services::port_scanner::PortScanner;
 use crate::services::runtime;
 use crate::services::task::TaskManager;
 use crate::terminal;
@@ -86,13 +87,23 @@ pub async fn serve(cli: Cli, force_qr: bool) -> anyhow::Result<()> {
     let instance_id = Arc::new(uuid::Uuid::new_v4().to_string());
     tracing::info!("Server instance ID: {instance_id}");
 
+    let port_scanner = Arc::new(PortScanner::new(
+        agent.broadcast_tx().clone(),
+        agent.event_counter().clone(),
+        agent.event_buffer().clone(),
+    ));
+    port_scanner.start_periodic_scan();
+
     let state = AppState {
         config: Arc::new(config.clone()),
         db: Arc::new(db),
         pairing: pairing.clone(),
         agent,
         task_manager,
+        port_scanner,
+        http_client: reqwest::Client::new(),
         instance_id,
+        active_preview: Arc::new(tokio::sync::RwLock::new(None)),
     };
 
     let app = build_app(state);
@@ -123,14 +134,19 @@ fn build_app(state: AppState) -> Router {
             header::CONTENT_TYPE,
             header::HeaderName::from_static("last-event-id"),
             header::HeaderName::from_static("x-requested-with"),
+            header::HeaderName::from_static("x-pi-preview-session"),
+            header::HeaderName::from_static("x-pi-preview-hostname"),
+            header::HeaderName::from_static("x-pi-preview-port"),
+            header::HeaderName::from_static("x-proxy-authorization"),
         ]);
 
     Router::new()
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         .route("/healthz", get(routes::health::healthz))
         .route("/version", get(routes::health::version))
+        .route("/preview-sw.js", get(web::serve_preview_sw))
         .nest("/api", router::api_routes())
-        .fallback(any(web::serve_web))
+        .fallback(any(web::fallback_or_preview))
         .layer(TraceLayer::new_for_http())
         .layer(cors)
         .with_state(state)

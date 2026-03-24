@@ -14,6 +14,7 @@ export interface AgentSessionHandle extends SessionState {
   steer: (message: string, options?: { images?: ImageContent[] }) => Promise<void>;
   followUp: (message: string, options?: { images?: ImageContent[] }) => Promise<void>;
   abort: () => Promise<void>;
+  loadOlderMessages: () => Promise<void>;
   sendExtensionUiResponse: (params: {
     id: string;
     value?: string;
@@ -28,6 +29,9 @@ const EMPTY: SessionState = {
   isStreaming: false,
   isReady: false,
   isLoading: false,
+  isLoadingOlderMessages: false,
+  hasMoreMessages: false,
+  oldestEntryId: null,
   mode: "chat",
   pendingExtensionUiRequest: null,
 };
@@ -104,6 +108,11 @@ export function useAgentSession(
     return client.abort(sessionId);
   }, [client, sessionId]);
 
+  const loadOlderMessages = useCallback(() => {
+    if (!sessionId) return Promise.resolve();
+    return client.loadOlderMessages(sessionId);
+  }, [client, sessionId]);
+
   const sendExtensionUiResponse = useCallback(
     (params: { id: string; value?: string; confirmed?: boolean; cancelled?: boolean }) => {
       if (!sessionId) return Promise.resolve();
@@ -118,6 +127,7 @@ export function useAgentSession(
     steer,
     followUp,
     abort,
+    loadOlderMessages,
     sendExtensionUiResponse,
   };
 }

@@ -13,10 +13,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Colors, Fonts } from "@/constants/theme";
 import { useResponsiveLayout } from "@/features/navigation/hooks/use-responsive-layout";
-import { ChangesPanel } from "@/features/workspace/components/changes-panel";
 import { PromptInput } from "@/features/workspace/components/prompt-input";
 import { WorkspaceHero } from "@/features/workspace/components/workspace-hero";
 import { WorkspaceSidebar } from "@/features/workspace/components/workspace-sidebar";
+import { WorkspaceRightPane } from "@/features/preview/components/workspace-right-pane";
 import { useWorkspaceStore } from "@/features/workspace/store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { usePiClient } from "@pi-ui/client";
@@ -167,7 +167,7 @@ export default function WorkspaceScreen() {
         {isWideScreen && (
           <WorkspaceSidebar>
             <View style={{ flex: 1, backgroundColor: editorBg }}>
-              <ChangesPanel />
+              <WorkspaceRightPane sessionId={preSessionId} />
             </View>
           </WorkspaceSidebar>
         )}

@@ -149,7 +149,14 @@ pub async fn start_task(
         .start_task(&req.label, &req.workspace_id, &workspace.path, &definition)
         .await
     {
-        Ok(info) => (StatusCode::OK, Json(ApiResponse::ok(info))),
+        Ok(info) => {
+            let scanner = state.port_scanner.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                scanner.scan_and_broadcast().await;
+            });
+            (StatusCode::OK, Json(ApiResponse::ok(info)))
+        }
         Err(e) => (StatusCode::BAD_REQUEST, Json(ApiResponse::err(e))),
     }
 }
@@ -180,7 +187,14 @@ pub async fn stop_task(
     }
 
     match state.task_manager.stop_task(&req.task_id).await {
-        Ok(info) => (StatusCode::OK, Json(ApiResponse::ok(info))),
+        Ok(info) => {
+            let scanner = state.port_scanner.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                scanner.scan_and_broadcast().await;
+            });
+            (StatusCode::OK, Json(ApiResponse::ok(info)))
+        }
         Err(e) => (StatusCode::BAD_REQUEST, Json(ApiResponse::err(e))),
     }
 }
@@ -306,4 +320,19 @@ pub async fn remove_task(
         ),
         Err(e) => (StatusCode::BAD_REQUEST, Json(ApiResponse::err(e))),
     }
+}
+
+pub async fn scan_ports(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> (StatusCode, Json<ApiResponse<String>>) {
+    if let Err((code, msg)) = require_auth(&state, &headers).await {
+        return (code, Json(ApiResponse::err(msg)));
+    }
+
+    state.port_scanner.scan_and_broadcast().await;
+    (
+        StatusCode::OK,
+        Json(ApiResponse::ok("Port scan complete".to_string())),
+    )
 }

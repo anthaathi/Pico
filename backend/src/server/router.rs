@@ -1,4 +1,4 @@
-use axum::routing::{delete, get, post};
+use axum::routing::{any, delete, get, post};
 use axum::Router;
 
 use crate::server::state::AppState;
@@ -134,8 +134,18 @@ fn agent_routes() -> Router<AppState> {
             "/agent/sessions/{session_id}",
             delete(routes::agent::kill_session),
         )
+        .route(
+            "/agent/sessions/{session_id}/preview/{hostname}/{port}",
+            any(routes::agent::preview_proxy_root),
+        )
+        .route(
+            "/agent/sessions/{session_id}/preview/{hostname}/{port}/{*path}",
+            any(routes::agent::preview_proxy_path),
+        )
         .route("/stream", get(routes::agent::stream))
         .route("/ws/stream", get(routes::agent::ws_stream))
+        .route("/stream/{session_id}", get(routes::agent::session_stream))
+        .route("/ws/stream/{session_id}", get(routes::agent::ws_session_stream))
         .route("/agent/prompt", post(routes::agent::prompt))
         .route("/agent/steer", post(routes::agent::steer))
         .route("/agent/follow-up", post(routes::agent::follow_up))
@@ -238,4 +248,5 @@ fn task_routes() -> Router<AppState> {
         .route("/tasks/restart", post(routes::task::restart_task))
         .route("/tasks/logs/{task_id}", get(routes::task::get_logs))
         .route("/tasks/remove/{task_id}", delete(routes::task::remove_task))
+        .route("/ports/scan", post(routes::task::scan_ports))
 }

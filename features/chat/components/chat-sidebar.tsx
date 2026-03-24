@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -9,11 +9,11 @@ import {
   View,
 } from 'react-native';
 import { usePathname } from 'expo-router';
-import { SquarePen, RefreshCw } from 'lucide-react-native';
+import { SquarePen, RefreshCw, Square } from 'lucide-react-native';
 
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useChatSessions } from '@pi-ui/client';
+import { useChatSessions, usePiClient, useIsSessionActive } from '@pi-ui/client';
 import type { SessionListItem } from '@pi-ui/client';
 import { SessionActivityIndicator } from '@/features/workspace/components/session-activity-indicator';
 
@@ -197,12 +197,27 @@ function SessionItem({
   textMuted: string;
   isDark: boolean;
 }) {
+  const client = usePiClient();
+  const isActive = useIsSessionActive(session.id);
+  const [hovered, setHovered] = useState(false);
+  const [killing, setKilling] = useState(false);
   const title = session.display_name ?? session.id;
   const selectedBg = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+
+  const handleKill = useCallback(async () => {
+    setKilling(true);
+    try {
+      await client.killSession(session.id);
+    } finally {
+      setKilling(false);
+    }
+  }, [client, session.id]);
 
   return (
     <Pressable
       onPress={() => onSelect(session.id, session.file_path)}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
       style={({ pressed }) => [
         styles.sessionItem,
         isSelected && { backgroundColor: selectedBg },
@@ -216,6 +231,26 @@ function SessionItem({
       >
         {title}
       </Text>
+      {hovered && isActive && (
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation();
+            handleKill();
+          }}
+          disabled={killing}
+          style={({ pressed }) => [
+            styles.killButton,
+            { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' },
+            pressed && { opacity: 0.6 },
+          ]}
+        >
+          {killing ? (
+            <ActivityIndicator size={10} color={textMuted} />
+          ) : (
+            <Square size={12} color={isDark ? '#ef4444' : '#dc2626'} strokeWidth={2} fill={isDark ? '#ef4444' : '#dc2626'} />
+          )}
+        </Pressable>
+      )}
     </Pressable>
   );
 }
@@ -281,6 +316,13 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.sans,
     flex: 1,
     lineHeight: 25.2,
+  },
+  killButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyText: {
     fontSize: 13,

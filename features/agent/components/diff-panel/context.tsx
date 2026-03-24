@@ -175,7 +175,6 @@ export function DiffPanelProvider({
 export function useAutoOpenDiffTab(
   tab: DiffTab | null,
   isRunning: boolean,
-  isWideScreen: boolean,
 ) {
   const autoOpen = useAppSettingsStore((s) => s.diffPanelAutoOpen);
   const { autoAddTab } = useDiffPanel();
@@ -183,9 +182,9 @@ export function useAutoOpenDiffTab(
 
   useEffect(() => {
     if (!autoOpen) return;
-    if (!tab || !isRunning || !isWideScreen) return;
+    if (!tab || !isRunning) return;
     if (registeredRef.current === tab.id) return;
     registeredRef.current = tab.id;
     autoAddTab(tab);
-  }, [autoOpen, tab, isRunning, isWideScreen, autoAddTab]);
+  }, [autoOpen, tab, isRunning, autoAddTab]);
 }

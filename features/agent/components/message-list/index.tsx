@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   Platform,
   Pressable,
@@ -574,6 +575,9 @@ export function MessageList({ sessionId }: { sessionId: string }) {
   const session = useAgentSession(sessionId);
   const messages = session.messages as ChatMessage[];
   const isStreaming = session.isStreaming;
+  const hasMoreMessages = session.hasMoreMessages;
+  const isLoadingOlderMessages = session.isLoadingOlderMessages;
+  const loadOlderMessages = session.loadOlderMessages;
 
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const sessionWorkspaceById = useWorkspaceStore((s) => s.sessionWorkspaceById);
@@ -582,7 +586,6 @@ export function MessageList({ sessionId }: { sessionId: string }) {
   const isNearBottomRef = useRef(true);
   const hasHydratedRef = useRef(false);
   const seenMessageIdsRef = useRef<Set<string>>(new Set());
-  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showScrollButtonRef = useRef(false);
   const contentDirtyRef = useRef(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -709,12 +712,7 @@ export function MessageList({ sessionId }: { sessionId: string }) {
     contentDirtyRef.current = false;
 
     setScrollButtonVisible(false);
-    if (scrollTimerRef.current) return;
-
-    scrollTimerRef.current = setTimeout(() => {
-      scrollTimerRef.current = null;
-      listRef.current?.scrollToOffset({ offset: 0, animated: false });
-    }, 16);
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, [setScrollButtonVisible]);
 
   useEffect(() => {
@@ -724,10 +722,6 @@ export function MessageList({ sessionId }: { sessionId: string }) {
     contentDirtyRef.current = false;
     setScrollButtonVisible(false);
 
-    if (scrollTimerRef.current) {
-      clearTimeout(scrollTimerRef.current);
-      scrollTimerRef.current = null;
-    }
     if (bannerTimerRef.current) {
       clearTimeout(bannerTimerRef.current);
       bannerTimerRef.current = null;
@@ -755,9 +749,6 @@ export function MessageList({ sessionId }: { sessionId: string }) {
 
   useEffect(() => {
     return () => {
-      if (scrollTimerRef.current) {
-        clearTimeout(scrollTimerRef.current);
-      }
       if (bannerTimerRef.current) {
         clearTimeout(bannerTimerRef.current);
       }
@@ -791,6 +782,19 @@ export function MessageList({ sessionId }: { sessionId: string }) {
     [],
   );
 
+  const handleLoadOlder = useCallback(() => {
+    if (hasMoreMessages && !isLoadingOlderMessages) {
+      loadOlderMessages();
+    }
+  }, [hasMoreMessages, isLoadingOlderMessages, loadOlderMessages]);
+
+  const olderMessagesFooter = useMemo(() => {
+    if (isLoadingOlderMessages) {
+      return <ActivityIndicator style={{ paddingVertical: 16 }} />;
+    }
+    return null;
+  }, [isLoadingOlderMessages]);
+
   if (visibleItems.length === 0) {
     if (session.isLoading) {
       return <MessageShimmer isDark={isDark} />;
@@ -820,6 +824,9 @@ export function MessageList({ sessionId }: { sessionId: string }) {
         updateCellsBatchingPeriod={16}
         windowSize={7}
         ListHeaderComponent={footer}
+        ListFooterComponent={olderMessagesFooter}
+        onEndReached={handleLoadOlder}
+        onEndReachedThreshold={0.5}
         showsVerticalScrollIndicator={false}
         removeClippedSubviews={Platform.OS !== "web"}
       />

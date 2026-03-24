@@ -156,7 +156,9 @@ export class StreamConnection {
       } catch { /* not a control event, continue */ }
       const events = parseStreamEvents(event.data);
       for (const evt of events) {
-        this._lastEventId = evt.id;
+        if (evt.id > 0) {
+          this._lastEventId = evt.id;
+        }
         this._events$.next(evt);
       }
     });

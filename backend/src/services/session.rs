@@ -152,6 +152,139 @@ pub fn get_session_messages_anywhere(base_path: &Path, session_id: &str) -> Opti
     parse_session_messages(&file_path)
 }
 
+pub struct PaginatedMessages {
+    pub messages: Vec<Value>,
+    pub has_more: bool,
+    pub oldest_entry_id: Option<String>,
+}
+
+pub fn get_session_messages_paginated(
+    base_path: &Path,
+    session_id: &str,
+    limit: u32,
+    before_entry_id: Option<&str>,
+) -> Option<PaginatedMessages> {
+    let file_path = find_session_file_anywhere(base_path, session_id)?;
+    let content = std::fs::read_to_string(&file_path).ok()?;
+
+    let mut all_messages: Vec<(Option<String>, Value)> = Vec::new();
+
+    for line in content.lines().skip(1) {
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        let Ok(val) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+
+        if val.get("type").and_then(|v| v.as_str()) != Some("message") {
+            continue;
+        }
+
+        let Some(message) = val.get("message") else {
+            continue;
+        };
+
+        let entry_id = val.get("id").and_then(|v| v.as_str()).map(|s| s.to_string());
+
+        let mut msg = message.clone();
+        if let Some(ref eid) = entry_id {
+            if let Some(obj) = msg.as_object_mut() {
+                if !obj.contains_key("id") && !obj.contains_key("entryId") {
+                    obj.insert("entryId".to_string(), Value::String(eid.clone()));
+                }
+            }
+        }
+
+        all_messages.push((entry_id, msg));
+    }
+
+    let end_index = if let Some(before_id) = before_entry_id {
+        all_messages.iter().position(|(eid, _)| eid.as_deref() == Some(before_id))
+            .unwrap_or(all_messages.len())
+    } else {
+        all_messages.len()
+    };
+
+    let start_index = end_index.saturating_sub(limit as usize);
+    let has_more = start_index > 0;
+
+    let page: Vec<Value> = all_messages[start_index..end_index]
+        .iter()
+        .map(|(_, msg)| msg.clone())
+        .collect();
+
+    let oldest_entry_id = if !page.is_empty() {
+        all_messages[start_index].0.clone()
+    } else {
+        None
+    };
+
+    Some(PaginatedMessages {
+        messages: page,
+        has_more,
+        oldest_entry_id,
+    })
+}
+
+pub fn get_session_messages_after(
+    base_path: &Path,
+    session_id: &str,
+    last_message_id: Option<&str>,
+) -> Option<Vec<Value>> {
+    let file_path = find_session_file_anywhere(base_path, session_id)?;
+    let content = std::fs::read_to_string(&file_path).ok()?;
+
+    let mut messages = Vec::new();
+    let mut found_marker = last_message_id.is_none();
+
+    for line in content.lines().skip(1) {
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        let Ok(val) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+
+        if val.get("type").and_then(|v| v.as_str()) != Some("message") {
+            continue;
+        }
+
+        let Some(message) = val.get("message") else {
+            continue;
+        };
+
+        let entry_id = val.get("id").and_then(|v| v.as_str());
+
+        if !found_marker {
+            let msg_id = message.get("id").and_then(|v| v.as_str())
+                .or_else(|| message.get("messageId").and_then(|v| v.as_str()))
+                .or_else(|| message.get("entryId").and_then(|v| v.as_str()))
+                .or(entry_id);
+
+            if msg_id == last_message_id {
+                found_marker = true;
+            }
+            continue;
+        }
+
+        let mut msg = message.clone();
+        if let Some(eid) = entry_id {
+            if let Some(obj) = msg.as_object_mut() {
+                if !obj.contains_key("id") && !obj.contains_key("entryId") {
+                    obj.insert("entryId".to_string(), Value::String(eid.to_string()));
+                }
+            }
+        }
+
+        messages.push(msg);
+    }
+
+    Some(messages)
+}
+
 pub fn get_session_tree(base_path: &Path, cwd: &str, session_id: &str) -> Option<Vec<SessionTreeNode>> {
     let entries = get_session_entries(base_path, cwd, session_id)?;
 

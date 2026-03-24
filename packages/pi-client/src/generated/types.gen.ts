@@ -2399,6 +2399,41 @@ export type UpdateResponses = {
 
 export type UpdateResponse = UpdateResponses[keyof UpdateResponses];
 
+export type GetOlderMessagesData = {
+    body?: never;
+    path: {
+        /**
+         * Session ID
+         */
+        session_id: string;
+    };
+    query?: {
+        /**
+         * Load messages before this entry ID
+         */
+        before?: string;
+        /**
+         * Max messages to return (default 20)
+         */
+        limit?: number;
+    };
+    url: '/api/sessions/{session_id}/messages';
+};
+
+export type GetOlderMessagesErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type GetOlderMessagesResponses = {
+    /**
+     * Paginated messages
+     */
+    200: unknown;
+};
+
 export type StreamData = {
     body?: never;
     path?: never;

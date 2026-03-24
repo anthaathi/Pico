@@ -5,7 +5,7 @@ import { ChevronDown, ChevronRight } from "lucide-react-native";
 import { Fonts } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import type { ToolCallInfo } from "../../types";
-import { getToolStatusLabel, isToolCallActive, parseToolArguments } from "./tool-call-utils";
+import { getToolStatusLabel, isToolCallActive, parseBashCommand, parseToolArguments } from "./tool-call-utils";
 import { animateLayout, sharedStyles as styles } from "./tool-call-shared";
 
 export function BashToolCall({ tc }: { tc: ToolCallInfo }) {
@@ -22,12 +22,14 @@ export function BashToolCall({ tc }: { tc: ToolCallInfo }) {
   }, [isRunning]);
 
   const parsed = parseToolArguments(tc.arguments);
-  const command = parsed.command ?? "";
+  const rawCommand = parsed.command ?? "";
+  const { cwd, command } = parseBashCommand(rawCommand);
 
   const output = tc.result ?? tc.partialResult;
   const textColor = isDark ? "#CCCCCC" : "#1A1A1A";
   const mutedColor = isDark ? "#888" : "#888";
   const shortCmd = command.length > 60 ? command.slice(0, 60) + "…" : command;
+  const cwdLabel = cwd ? cwd.split("/").slice(-2).join("/") : null;
 
   const toggle = useCallback(() => { animateLayout(); setExpanded((v) => !v); }, []);
 
@@ -37,6 +39,9 @@ export function BashToolCall({ tc }: { tc: ToolCallInfo }) {
         <Text style={styles.singleLine} numberOfLines={1}>
           <Text style={[styles.verb, { color: textColor }]}>Shell</Text>
           <Text style={[styles.detail, { color: mutedColor }]}> {shortCmd}</Text>
+          {cwdLabel ? (
+            <Text style={[styles.detail, { color: mutedColor }]}> in {cwdLabel}</Text>
+          ) : null}
           {statusLabel ? (
             <Text style={[styles.status, { color: mutedColor }]}> {statusLabel}</Text>
           ) : null}

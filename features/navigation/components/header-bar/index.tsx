@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Check,
   ChevronDown,
   ExternalLink,
   Github,
   Gitlab,
+  Globe,
   PanelLeft,
   Search,
   Settings,
@@ -18,7 +19,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 
 import { Colors, Fonts } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -31,6 +32,9 @@ import { useAppMode } from "@/hooks/use-app-mode";
 import { useGitStatus, useNestedRepos } from "@pi-ui/client";
 import { remotesToLinks, type RemoteLink } from "@/features/workspace/utils/git-remote-url";
 import { TaskSelector } from "@/features/tasks/components/task-selector";
+import { usePreviewStore } from "@/features/preview/store";
+
+const EMPTY_TARGETS: never[] = [];
 
 function RepoIcon({ host, size, color }: { host: string; size: number; color: string }) {
   if (host === "github") return <Github size={size} color={color} strokeWidth={1.8} />;
@@ -55,6 +59,7 @@ export function HeaderBar({
   const [popoverVisible, setPopoverVisible] = useState(false);
   const [switchingId, setSwitchingId] = useState<string | null>(null);
   const router = useRouter();
+  const pathname = usePathname();
 
   const activeServerId = useAuthStore((s) => s.activeServerId);
   const activateServer = useAuthStore((s) => s.activateServer);
@@ -64,6 +69,15 @@ export function HeaderBar({
   const switchServer = useWorkspaceStore((s) => s.switchServer);
   const appMode = useAppMode();
   const isCodeMode = appMode === "code";
+  const sessionMatch = pathname.match(/^\/workspace\/[^/]+\/s\/([^/]+)$/);
+  const currentSessionId = sessionMatch?.[1] ?? null;
+  const previewTargets = usePreviewStore((s) =>
+    currentSessionId ? s.targetsBySession[currentSessionId] ?? EMPTY_TARGETS : EMPTY_TARGETS
+  );
+  const previewPaneOpen = usePreviewStore((s) =>
+    currentSessionId ? s.paneOpenBySession[currentSessionId] ?? false : false
+  );
+  const togglePreviewPane = usePreviewStore((s) => s.togglePane);
 
   const workspace = useWorkspaceStore((s) =>
     s.workspaces.find((w) => w.id === s.selectedWorkspaceId)
@@ -74,7 +88,7 @@ export function HeaderBar({
   const [repoMenuVisible, setRepoMenuVisible] = useState(false);
 
   // Collect all remote links: root repo + nested repos
-  const allLinks: Array<RemoteLink & { repoPath?: string }> = [];
+  const allLinks: (RemoteLink & { repoPath?: string })[] = [];
   const rootLinks = remotesToLinks(gitData?.remotes);
   for (const link of rootLinks) {
     allLinks.push(link);
@@ -377,6 +391,20 @@ export function HeaderBar({
           </View>
         )}
         {isCodeMode && <TaskSelector />}
+        {isCodeMode && currentSessionId && (
+          <Pressable
+            onPress={() => togglePreviewPane(currentSessionId)}
+            style={({ pressed }) => [
+              styles.headerBtn,
+              previewPaneOpen && { backgroundColor: isDark ? "#2A2A2A" : "#F0F0F0" },
+              pressed && { opacity: 0.7 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Toggle preview"
+          >
+            <Globe size={16} color={textMuted} strokeWidth={1.8} />
+          </Pressable>
+        )}
         <Pressable
           onPress={() => setPaletteVisible(true)}
           style={({ pressed }) => [

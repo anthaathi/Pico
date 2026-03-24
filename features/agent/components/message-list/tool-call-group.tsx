@@ -234,6 +234,10 @@ export interface ToolCallRenderItem {
 
 const NEVER_GROUP = new Set(["bash", "write", "edit"]);
 
+function stableToolCallId(tc: ToolCallInfo): string {
+  return tc.previousId ?? tc.id;
+}
+
 export function groupToolCalls(
   toolCalls: ToolCallInfo[],
 ): ToolCallRenderItem[] {
@@ -245,7 +249,7 @@ export function groupToolCalls(
   for (const tc of toolCalls) {
     if (NEVER_GROUP.has(tc.name)) {
       result.push({
-        key: `single-${tc.id}`,
+        key: `single-${stableToolCallId(tc)}`,
         toolName: tc.name,
         calls: [tc],
       });
@@ -255,7 +259,7 @@ export function groupToolCalls(
         existing.calls.push(tc);
       } else {
         const item: ToolCallRenderItem = {
-          key: `group-${tc.id}`,
+          key: `group-${stableToolCallId(tc)}`,
           toolName: tc.name,
           calls: [tc],
         };

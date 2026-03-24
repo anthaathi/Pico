@@ -6,7 +6,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useResponsiveLayout } from "@/features/navigation/hooks/use-responsive-layout";
 import type { ToolCallInfo } from "../../types";
 import { getToolStatusLabel, isToolCallActive, parseToolArguments } from "./tool-call-utils";
-import { useIsMessageVisible } from "./visibility-context";
+import { useIsMessageVisible, useMobileDiffSheet } from "./visibility-context";
 import { animateLayout, basename, countLines, sharedStyles as styles } from "./tool-call-shared";
 import {
   CodePreview,
@@ -22,6 +22,7 @@ export function WriteToolCall({ tc }: { tc: ToolCallInfo }) {
   const isRunning = isToolCallActive(tc);
   const isVisible = useIsMessageVisible();
   const statusLabel = getToolStatusLabel(tc);
+  const mobileDiffSheet = useMobileDiffSheet();
 
   const diffPanel = useDiffPanel();
   const hasDiffPanel = diffPanel !== null && diffPanel.selectTab !== undefined;
@@ -39,7 +40,7 @@ export function WriteToolCall({ tc }: { tc: ToolCallInfo }) {
   const usesSidebar = isWideScreen && hasDiffPanel;
   const isActiveInSidebar = usesSidebar && (diffPanel.activeTabId === tc.id || diffPanel.activeTabId === tab?.id);
 
-  useAutoOpenDiffTab(usesSidebar ? tab : null, isRunning, isWideScreen);
+  useAutoOpenDiffTab(tab, isRunning);
 
   const [expanded, setExpanded] = useState(!usesSidebar && isWideScreen && isRunning);
 
@@ -63,9 +64,11 @@ export function WriteToolCall({ tc }: { tc: ToolCallInfo }) {
   return (
     <View>
       <Pressable style={styles.row} onPress={() => {
-        if (usesSidebar && tab) {
+        if (!isWideScreen) {
+          mobileDiffSheet.open(tab?.id ?? undefined);
+        } else if (usesSidebar && tab) {
           diffPanel.selectTab(tab);
-        } else if (isWideScreen) {
+        } else {
           animateLayout();
           setExpanded((v) => !v);
         }

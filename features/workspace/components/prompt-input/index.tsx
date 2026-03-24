@@ -203,6 +203,14 @@ export function PromptInput({
   }, [speechLoaded, loadSpeechSettings]);
 
   const draftKey = sessionId ?? "__new__";
+  const prevDraftKeyRef = useRef(draftKey);
+  useEffect(() => {
+    const prev = prevDraftKeyRef.current;
+    if (prev !== draftKey) {
+      useDraftStore.getState().migrateDraft(prev, draftKey);
+      prevDraftKeyRef.current = draftKey;
+    }
+  }, [draftKey]);
   const text = useDraftStore((s) => s.getText(draftKey));
   const attachments = useDraftStore((s) => s.getAttachments(draftKey));
   const setText = useCallback((v: string) => useDraftStore.getState().setText(draftKey, v), [draftKey]);

@@ -1,6 +1,6 @@
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
-import { GitBranch, Github, Gitlab, ExternalLink, PanelLeft, SquarePen } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+import { GitBranch, Github, Gitlab, ExternalLink, Globe, PanelLeft, SquarePen } from 'lucide-react-native';
+import { usePathname, useRouter } from 'expo-router';
 
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -10,22 +10,32 @@ import { useChatStore } from '@/features/chat/store';
 import { useGitStatus, useNestedRepos } from '@pi-ui/client';
 import { remotesToLinks, type RemoteLink } from '@/features/workspace/utils/git-remote-url';
 import { MobileTaskSelector } from '@/features/tasks/components/mobile-tasks-button';
+import { usePreviewStore } from '@/features/preview/store';
+
+const EMPTY_TARGETS: never[] = [];
 
 interface MobileHeaderBarProps {
   onWorkspacePress: () => void;
   onGitPress: () => void;
+  onPreviewPress?: () => void;
   onChatSessionsPress?: () => void;
   onTasksPress?: () => void;
   onTaskOutputPress?: () => void;
 }
 
-export function MobileHeaderBar({ onWorkspacePress, onGitPress, onChatSessionsPress, onTasksPress, onTaskOutputPress }: MobileHeaderBarProps) {
+export function MobileHeaderBar({ onWorkspacePress, onGitPress, onPreviewPress, onChatSessionsPress, onTasksPress, onTaskOutputPress }: MobileHeaderBarProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
   const isDark = colorScheme === 'dark';
   const appMode = useAppMode();
   const router = useRouter();
+  const pathname = usePathname();
   const selectChatSession = useChatStore((s) => s.selectSession);
+  const sessionMatch = pathname.match(/^\/workspace\/[^/]+\/s\/([^/]+)$/);
+  const currentSessionId = sessionMatch?.[1] ?? null;
+  const previewTargets = usePreviewStore((state) =>
+    currentSessionId ? state.targetsBySession[currentSessionId] ?? EMPTY_TARGETS : EMPTY_TARGETS
+  );
 
   const workspace = useWorkspaceStore((s) =>
     s.workspaces.find((w) => w.id === s.selectedWorkspaceId)
@@ -36,7 +46,7 @@ export function MobileHeaderBar({ onWorkspacePress, onGitPress, onChatSessionsPr
   const { repos: nestedRepos } = useNestedRepos(cwd);
 
   // Collect all remote links: root repo + nested repos
-  const allLinks: Array<RemoteLink & { repoPath?: string }> = [];
+  const allLinks: (RemoteLink & { repoPath?: string })[] = [];
   const rootLinks = remotesToLinks(gitData?.remotes);
   for (const link of rootLinks) {
     allLinks.push(link);
@@ -136,6 +146,20 @@ export function MobileHeaderBar({ onWorkspacePress, onGitPress, onChatSessionsPr
             onPress={onTasksPress ?? (() => {})}
             onOutputPress={onTaskOutputPress ?? (() => {})}
           />
+        )}
+        {appMode === 'code' && currentSessionId && (
+          <Pressable
+            onPress={onPreviewPress}
+            style={({ pressed }) => [
+              styles.iconButton,
+              { backgroundColor: buttonBg },
+              pressed && { opacity: 0.7 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Open preview"
+          >
+            <Globe size={16} color={textPrimary} strokeWidth={1.8} />
+          </Pressable>
         )}
         {appMode === 'code' && (
           <Pressable

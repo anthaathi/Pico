@@ -17,9 +17,10 @@ import { MessageList } from '@/features/agent/components/message-list';
 import { ChatShimmer } from '@/features/agent/components/message-list/chat-shimmer';
 import { PromptInput } from '@/features/workspace/components/prompt-input';
 import { ExtensionUiDialog } from '@/features/agent/components/extension-ui-dialog';
-import { useAgentSession, useConnection } from '@pi-ui/client';
+import { DiffPanelProvider } from '@/features/agent/components/diff-panel/context';
+import { MobileDiffSheetProvider } from '@/features/agent/components/message-list/mobile-diff-sheet';
+import { useAgentSession, useChatSessions, useConnection } from '@pi-ui/client';
 import { useChatStore } from '@/features/chat/store';
-import { useChatSessions } from '@pi-ui/client';
 import { useWorkspaceStore } from '@/features/workspace/store';
 import type { PendingExtensionUiRequest as LegacyPendingUiRequest } from '@/features/agent/extension-ui';
 
@@ -102,6 +103,8 @@ export default function ChatSessionScreen() {
   }, [keyboardPadding, insets.bottom]);
 
   return (
+    <DiffPanelProvider messages={session.messages as any[]}>
+    <MobileDiffSheetProvider>
     <Animated.View
       style={[styles.container, { backgroundColor: isDark ? '#121212' : colors.background, paddingBottom: isWideScreen ? 0 : Animated.add(keyboardPadding, insets.bottom) }]}
     >
@@ -134,6 +137,8 @@ export default function ChatSessionScreen() {
         />
       </View>
     </Animated.View>
+    </MobileDiffSheetProvider>
+    </DiffPanelProvider>
   );
 }
 

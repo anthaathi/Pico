@@ -3,6 +3,7 @@ pub mod connection;
 pub mod git;
 pub mod package;
 pub mod pairing;
+pub mod port_scanner;
 pub mod provider;
 pub mod runtime;
 pub mod session;

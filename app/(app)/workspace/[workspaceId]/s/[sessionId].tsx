@@ -11,9 +11,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Colors } from "@/constants/theme";
 import { useResponsiveLayout } from "@/features/navigation/hooks/use-responsive-layout";
-import { ChangesPanel } from "@/features/workspace/components/changes-panel";
 import { PromptInput } from "@/features/workspace/components/prompt-input";
 import { WorkspaceSidebar } from "@/features/workspace/components/workspace-sidebar";
+import { WorkspaceRightPane } from "@/features/preview/components/workspace-right-pane";
 import { useWorkspaceStore } from "@/features/workspace/store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { MessageList } from "@/features/agent/components/message-list";
@@ -21,8 +21,8 @@ import { ChatShimmer } from "@/features/agent/components/message-list/chat-shimm
 import { ExtensionUiDialog } from "@/features/agent/components/extension-ui-dialog";
 import { DiffPanelProvider } from "@/features/agent/components/diff-panel/context";
 import { DiffSidebar } from "@/features/agent/components/diff-panel";
-import { useAgentSession, useConnection } from "@pi-ui/client";
-import { useWorkspaceSessions as useSessions } from '@pi-ui/client';
+import { MobileDiffSheetProvider } from "@/features/agent/components/message-list/mobile-diff-sheet";
+import { useAgentSession, useConnection, useWorkspaceSessions as useSessions } from "@pi-ui/client";
 import { requestBrowserNotificationPermission } from "@/features/agent/browser-notifications";
 import type { PendingExtensionUiRequest as LegacyPendingUiRequest } from "@/features/agent/extension-ui";
 import type { ChatMessage } from "@/features/agent/types";
@@ -154,6 +154,7 @@ export default function SessionScreen() {
 
   return (
     <DiffPanelProvider messages={messages}>
+      <MobileDiffSheetProvider>
       <Animated.View
         style={[
           styles.container,
@@ -207,13 +208,14 @@ export default function SessionScreen() {
               <DiffSidebar messages={messages} />
               <WorkspaceSidebar>
                 <View style={{ flex: 1, backgroundColor: editorBg }}>
-                  <ChangesPanel />
+                  <WorkspaceRightPane sessionId={sessionId ?? null} />
                 </View>
               </WorkspaceSidebar>
             </>
           )}
         </View>
       </Animated.View>
+      </MobileDiffSheetProvider>
     </DiffPanelProvider>
   );
 }

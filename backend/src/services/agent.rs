@@ -526,6 +526,17 @@ impl AgentManager {
         }
     }
 
+    pub async fn get_buffered_session_events(&self, session_id: &str) -> Vec<StreamEvent> {
+        let mut buffer = self.event_buffer.lock().await;
+        get_buffered_events_for_session(buffer.make_contiguous(), session_id)
+    }
+
+    pub async fn get_session_info(&self, session_id: &str) -> Option<AgentSessionInfo> {
+        let resolved_id = self.resolve_session_id(session_id).await;
+        let sessions = self.sessions.read().await;
+        sessions.get(&resolved_id).map(build_session_info)
+    }
+
     pub fn start_idle_cleanup_task(&self) {
         let manager = self.clone();
 
@@ -1251,4 +1262,53 @@ async fn emit_active_sessions(
 
 fn stream_event_to_json(event: &AgentStreamEvent) -> (String, Value) {
     event.to_json()
+}
+
+const SESSION_ONLY_EVENT_TYPES: &[&str] = &[
+    "message_start",
+    "message_update",
+    "message_end",
+    "tool_execution_start",
+    "tool_execution_update",
+    "tool_execution_end",
+    "turn_start",
+    "auto_compaction_start",
+    "auto_compaction_end",
+    "auto_retry_start",
+    "auto_retry_end",
+];
+
+pub fn is_global_event(event_type: &str) -> bool {
+    !SESSION_ONLY_EVENT_TYPES.contains(&event_type)
+}
+
+pub fn is_session_only_event(event_type: &str) -> bool {
+    SESSION_ONLY_EVENT_TYPES.contains(&event_type)
+}
+
+pub fn get_buffered_events_for_session(
+    events: &[StreamEvent],
+    session_id: &str,
+) -> Vec<StreamEvent> {
+    let session_events: Vec<&StreamEvent> = events
+        .iter()
+        .filter(|e| e.session_id == session_id && is_session_only_event(&e.event_type))
+        .collect();
+
+    let last_boundary = session_events
+        .iter()
+        .rposition(|e| {
+            e.event_type == "turn_end"
+                || e.event_type == "agent_end"
+                || e.event_type == "message_end"
+        });
+
+    match last_boundary {
+        Some(idx) => session_events[idx + 1..]
+            .iter()
+            .cloned()
+            .cloned()
+            .collect(),
+        None => session_events.into_iter().cloned().collect(),
+    }
 }

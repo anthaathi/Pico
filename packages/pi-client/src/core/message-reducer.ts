@@ -6,6 +6,9 @@ export interface SessionState {
   isStreaming: boolean;
   isReady: boolean;
   isLoading: boolean;
+  isLoadingOlderMessages: boolean;
+  hasMoreMessages: boolean;
+  oldestEntryId: string | null;
   mode: AgentMode;
   pendingExtensionUiRequest: PendingExtensionUiRequest | null;
 }
@@ -16,6 +19,9 @@ export function createEmptySessionState(): SessionState {
     isStreaming: false,
     isReady: false,
     isLoading: false,
+    isLoadingOlderMessages: false,
+    hasMoreMessages: false,
+    oldestEntryId: null,
     mode: "chat",
     pendingExtensionUiRequest: null,
   };
@@ -94,6 +100,13 @@ export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnve
     case "agent_end": {
       isStreaming = false;
       messages = updateLastStreaming(messages, (msg) => ({ ...msg, isStreaming: false }));
+      const endData = event as unknown as Record<string, unknown>;
+      if (Array.isArray(endData["messages"])) {
+        const authoritative = convertRawMessages(endData["messages"] as Record<string, string>[]);
+        if (authoritative.length > messages.length) {
+          messages = authoritative;
+        }
+      }
       break;
     }
 
@@ -101,19 +114,27 @@ export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnve
       if (event.type !== "message_start") break;
       const msg = event.message;
       if (msg?.role === "assistant") {
-        messages = [...messages, {
-          id: `assistant-${envelope.id}`,
-          role: "assistant",
-          text: "",
-          thinking: "",
-          toolCalls: [],
-          timestamp: envelope.timestamp,
-          isStreaming: true,
-          model: msg.model,
-          provider: msg.provider,
-          api: msg.api,
-          responseId: msg.responseId,
-        }];
+        const newId = `assistant-${envelope.id}`;
+        const existingIdx = messages.findIndex((m) => m.id === newId);
+        if (existingIdx >= 0) {
+          const next = [...messages];
+          next[existingIdx] = { ...next[existingIdx]!, isStreaming: true };
+          messages = next;
+        } else {
+          messages = [...messages, {
+            id: newId,
+            role: "assistant",
+            text: "",
+            thinking: "",
+            toolCalls: [],
+            timestamp: envelope.timestamp,
+            isStreaming: true,
+            model: msg.model,
+            provider: msg.provider,
+            api: msg.api,
+            responseId: msg.responseId,
+          }];
+        }
       }
       break;
     }
@@ -121,6 +142,9 @@ export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnve
     case "message_update": {
       if (event.type !== "message_update") break;
       let idx = findLastStreamingIndex(messages);
+      if (idx === -1) {
+        idx = messages.findLastIndex((m) => m.role === "assistant");
+      }
       if (idx === -1) {
         messages = [...messages, {
           id: `assistant-${envelope.id}`,
@@ -242,14 +266,27 @@ export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnve
 
     case "message_end": {
       if (event.type !== "message_end") break;
-      messages = updateLastStreaming(messages, (msg) => ({
-        ...msg,
-        isStreaming: false,
-        stopReason: event.message?.stopReason ?? msg.stopReason,
-        provider: event.message?.provider ?? msg.provider,
-        api: event.message?.api ?? msg.api,
-        responseId: event.message?.responseId ?? msg.responseId,
-      }));
+      const endMsg = event.message as unknown as Record<string, unknown> | undefined;
+      messages = updateLastStreaming(messages, (msg) => {
+        const updated: ChatMessage = {
+          ...msg,
+          isStreaming: false,
+          stopReason: endMsg?.["stopReason"] as ChatMessage["stopReason"] ?? msg.stopReason,
+          errorMessage: (endMsg?.["errorMessage"] as string) ?? msg.errorMessage,
+          provider: (endMsg?.["provider"] as string) ?? msg.provider,
+          api: (endMsg?.["api"] as string) ?? msg.api,
+          responseId: (endMsg?.["responseId"] as string) ?? msg.responseId,
+          usage: extractUsage(endMsg as Record<string, unknown> ?? {}) ?? msg.usage,
+        };
+        if (endMsg && Array.isArray(endMsg["content"])) {
+          const content = endMsg["content"] as Record<string, unknown>[];
+          const text = content.filter(c => c["type"] === "text").map(c => (c["text"] as string) ?? "").join("");
+          if (text && !msg.text) updated.text = text;
+          const thinking = content.filter(c => c["type"] === "thinking").map(c => (c["thinking"] as string) ?? "").join("");
+          if (thinking && !msg.thinking) updated.thinking = thinking;
+        }
+        return updated;
+      });
       break;
     }
 

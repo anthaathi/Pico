@@ -164,3 +164,18 @@ pub struct WsStreamQuery {
     pub from: Option<u64>,
     pub access_token: Option<String>,
 }
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct SessionStreamQuery {
+    pub last_message_id: Option<String>,
+    pub before: Option<String>,
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct WsSessionStreamQuery {
+    pub last_message_id: Option<String>,
+    pub before: Option<String>,
+    pub limit: Option<u32>,
+    pub access_token: Option<String>,
+}
