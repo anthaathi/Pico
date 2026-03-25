@@ -85,9 +85,7 @@ export function AppModeToggle() {
             ? lastWorkspaceSession
               ? { pathname: '/workspace/[workspaceId]/s/[sessionId]' as const, params: { workspaceId, sessionId: lastWorkspaceSession } }
               : { pathname: '/workspace/[workspaceId]' as const, params: { workspaceId } }
-            : null;
-
-      if (!target) return;
+            : '/settings' as const;
 
       setPendingMode(mode);
       startTransition(() => {
