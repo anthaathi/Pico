@@ -165,12 +165,39 @@ function connect() {
 }
 connect();
 
-// Use touchstart to catch taps BEFORE the browser blurs the textarea.
-// On desktop (no touch), fall back to mousedown.
+// --- Keyboard focus management ---
+// When the soft keyboard is open we must prevent noVNC from stealing
+// focus away from kbd-input. noVNC's RFB calls canvas.focus() on click
+// and internally, which would blur the textarea and dismiss the keyboard.
+let _origCanvasFocus = null;
+
+function lockFocusToKeyboard() {
+  if (!rfb) return;
+  // Disable noVNC's built-in click-to-focus
+  rfb.focusOnClick = false;
+  // Patch the canvas focus() so internal noVNC calls are no-ops
+  const canvas = target.querySelector("canvas");
+  if (canvas && !_origCanvasFocus) {
+    _origCanvasFocus = canvas.focus.bind(canvas);
+    canvas.focus = () => {};
+  }
+}
+
+function unlockFocus() {
+  if (!rfb) return;
+  rfb.focusOnClick = true;
+  const canvas = target.querySelector("canvas");
+  if (canvas && _origCanvasFocus) {
+    canvas.focus = _origCanvasFocus;
+    _origCanvasFocus = null;
+  }
+}
+
+// Use touchstart (fires before blur) so we can keep focus on the textarea.
 function onScreenTap(e) {
   if (kbdOpen) {
-    // Prevent the browser from processing the touch which would blur kbd-input
     e.preventDefault();
+    e.stopPropagation();
     kbdInput.focus({ preventScroll: true });
   } else if (rfb) {
     rfb.focus();
@@ -179,24 +206,11 @@ function onScreenTap(e) {
     window.ReactNativeWebView.postMessage(JSON.stringify({ type: "tap" }));
   }
 }
-target.addEventListener("touchstart", onScreenTap, { passive: false });
+target.addEventListener("touchstart", onScreenTap, { capture: true, passive: false });
 target.addEventListener("mousedown", (e) => {
-  // Only handle on non-touch devices
   if (e.sourceCapabilities && e.sourceCapabilities.firesTouchEvents) return;
   onScreenTap(e);
-});
-
-// Guard: if the textarea loses focus while the keyboard should be open,
-// immediately re-focus it (handles edge cases where the OS blurs it).
-kbdInput.addEventListener("blur", () => {
-  if (kbdOpen) {
-    setTimeout(() => {
-      if (kbdOpen && document.activeElement !== kbdInput) {
-        kbdInput.focus({ preventScroll: true });
-      }
-    }, 50);
-  }
-});
+}, { capture: true });
 
 // --- Mobile keyboard ---
 function toggleKeyboard() {
@@ -204,9 +218,11 @@ function toggleKeyboard() {
   document.getElementById("btn-kbd").classList.toggle("active", kbdOpen);
   kbdInput.classList.toggle("active", kbdOpen);
   if (kbdOpen) {
+    lockFocusToKeyboard();
     kbdInput.value = "";
     kbdInput.focus({ preventScroll: true });
   } else {
+    unlockFocus();
     kbdInput.blur();
     if (rfb) rfb.focus();
   }
