@@ -57,37 +57,11 @@ export function buildVncHtml(wsUrl: string, vncPassword?: string | null): string
   #menu-panel button:hover { background: rgba(255,255,255,0.08); color: #fff; }
   #menu-panel button:active { background: rgba(255,255,255,0.12); }
   #menu-panel button.active { color: #4fc3f7; }
-
-  /* Like noVNC: keep textarea in the DOM flow, inside the container,
-     but visually hidden. Never move it off-screen — that causes
-     mobile browsers/WebViews to consider it unfocusable and dismiss
-     the keyboard on any touch. */
-  #kbd-input {
-    position: fixed;
-    bottom: 0; left: 0;
-    width: 1px; height: 1px;
-    opacity: 0.01;
-    font-size: 16px;
-    border: none; outline: none;
-    color: transparent;
-    background: transparent;
-    resize: none;
-    z-index: -1;
-    /* Prevent iOS zoom */
-    transform: scale(0);
-    transform-origin: bottom left;
-  }
-  #kbd-input.active {
-    /* When keyboard is open, make it "real" enough that the OS keeps it focused */
-    transform: scale(1);
-    z-index: 300;
-  }
 </style>
 </head>
 <body>
 <div id="status">Connecting…</div>
 <div id="screen"></div>
-<textarea id="kbd-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" tabindex="-1"></textarea>
 
 <div id="menu-panel">
   <button id="btn-kbd">⌨ Keyboard</button>
@@ -103,7 +77,6 @@ import KeyTable from "https://cdn.jsdelivr.net/gh/novnc/noVNC@v1.5.0/core/input/
 
 const target = document.getElementById("screen");
 const status = document.getElementById("status");
-const kbdInput = document.getElementById("kbd-input");
 const menuToggle = document.getElementById("menu-toggle");
 const menuPanel = document.getElementById("menu-panel");
 
@@ -113,8 +86,8 @@ const vncPassword = ${JSON.stringify(vncPassword ?? '')};
 let rfb;
 let retries = 0;
 const MAX_RETRIES = 3;
-let kbdOpen = false;
 let menuOpen = false;
+let kbdOpen = false;
 
 // --- Menu ---
 function toggleMenu() {
@@ -143,7 +116,7 @@ function connect() {
     retries = 0;
     status.textContent = "Connected";
     status.classList.add("connected");
-    if (!kbdOpen) rfb.focus();
+    rfb.focus();
   });
 
   rfb.addEventListener("disconnect", (e) => {
@@ -165,105 +138,84 @@ function connect() {
 }
 connect();
 
-// --- Keyboard focus management ---
-// When the soft keyboard is open we must prevent noVNC from stealing
-// focus away from kbd-input. noVNC's RFB calls canvas.focus() on click
-// and internally, which would blur the textarea and dismiss the keyboard.
-let _origCanvasFocus = null;
+// --- Keysym map for special keys ---
+const KEYSYM_MAP = {
+  Enter: KeyTable.XK_Return,
+  Backspace: KeyTable.XK_BackSpace,
+  Tab: KeyTable.XK_Tab,
+  Escape: KeyTable.XK_Escape,
+  ArrowUp: KeyTable.XK_Up,
+  ArrowDown: KeyTable.XK_Down,
+  ArrowLeft: KeyTable.XK_Left,
+  ArrowRight: KeyTable.XK_Right,
+  Delete: KeyTable.XK_Delete,
+  Home: KeyTable.XK_Home,
+  End: KeyTable.XK_End,
+  PageUp: KeyTable.XK_Page_Up,
+  PageDown: KeyTable.XK_Page_Down,
+  F1: KeyTable.XK_F1, F2: KeyTable.XK_F2, F3: KeyTable.XK_F3,
+  F4: KeyTable.XK_F4, F5: KeyTable.XK_F5, F6: KeyTable.XK_F6,
+  F7: KeyTable.XK_F7, F8: KeyTable.XK_F8, F9: KeyTable.XK_F9,
+  F10: KeyTable.XK_F10, F11: KeyTable.XK_F11, F12: KeyTable.XK_F12,
+};
 
-function lockFocusToKeyboard() {
+// API for React Native to send keystrokes (called via injectJavaScript)
+window._vncSendKey = function(key) {
   if (!rfb) return;
-  // Disable noVNC's built-in click-to-focus
-  rfb.focusOnClick = false;
-  // Patch the canvas focus() so internal noVNC calls are no-ops
-  const canvas = target.querySelector("canvas");
-  if (canvas && !_origCanvasFocus) {
-    _origCanvasFocus = canvas.focus.bind(canvas);
-    canvas.focus = () => {};
+  const sym = KEYSYM_MAP[key];
+  if (sym) {
+    rfb.sendKey(sym, null, true);
+    rfb.sendKey(sym, null, false);
   }
-}
+};
 
-function unlockFocus() {
+window._vncSendText = function(text) {
   if (!rfb) return;
-  rfb.focusOnClick = true;
-  const canvas = target.querySelector("canvas");
-  if (canvas && _origCanvasFocus) {
-    canvas.focus = _origCanvasFocus;
-    _origCanvasFocus = null;
-  }
-}
-
-// Use touchstart (fires before blur) so we can keep focus on the textarea.
-function onScreenTap(e) {
-  if (kbdOpen) {
-    e.preventDefault();
-    e.stopPropagation();
-    kbdInput.focus({ preventScroll: true });
-  } else if (rfb) {
-    rfb.focus();
-  }
-  if (window.ReactNativeWebView) {
-    window.ReactNativeWebView.postMessage(JSON.stringify({ type: "tap" }));
-  }
-}
-target.addEventListener("touchstart", onScreenTap, { capture: true, passive: false });
-target.addEventListener("mousedown", (e) => {
-  if (e.sourceCapabilities && e.sourceCapabilities.firesTouchEvents) return;
-  onScreenTap(e);
-}, { capture: true });
-
-// --- Mobile keyboard ---
-function toggleKeyboard() {
-  kbdOpen = !kbdOpen;
-  document.getElementById("btn-kbd").classList.toggle("active", kbdOpen);
-  kbdInput.classList.toggle("active", kbdOpen);
-  if (kbdOpen) {
-    lockFocusToKeyboard();
-    kbdInput.value = "";
-    kbdInput.focus({ preventScroll: true });
-  } else {
-    unlockFocus();
-    kbdInput.blur();
-    if (rfb) rfb.focus();
-  }
-}
-
-kbdInput.addEventListener("input", (e) => {
-  if (!rfb || !e.data) return;
-  for (const ch of e.data) {
+  for (const ch of text) {
     const code = ch.charCodeAt(0);
     rfb.sendKey(code, null, true);
     rfb.sendKey(code, null, false);
   }
-  kbdInput.value = "";
-});
+};
 
-kbdInput.addEventListener("keydown", (e) => {
-  if (!rfb) return;
-  const map = {
-    Enter: KeyTable.XK_Return, Backspace: KeyTable.XK_BackSpace,
-    Tab: KeyTable.XK_Tab, Escape: KeyTable.XK_Escape,
-    ArrowUp: KeyTable.XK_Up, ArrowDown: KeyTable.XK_Down,
-    ArrowLeft: KeyTable.XK_Left, ArrowRight: KeyTable.XK_Right,
-  };
-  const keysym = map[e.key];
-  if (keysym) {
-    e.preventDefault();
-    rfb.sendKey(keysym, null, true);
-    rfb.sendKey(keysym, null, false);
+window._vncSendCtrlAltDel = function() {
+  if (rfb) rfb.sendCtrlAltDel();
+};
+
+window._vncPaste = function(text) {
+  if (rfb && text) rfb.clipboardPasteFrom(text);
+};
+
+// Notify React Native about taps (for toolbar show)
+target.addEventListener("click", () => {
+  if (window.ReactNativeWebView) {
+    window.ReactNativeWebView.postMessage(JSON.stringify({ type: "tap" }));
   }
 });
 
-// --- Fullscreen (sends message to parent for native immersive) ---
-document.getElementById("btn-kbd").addEventListener("click", () => { toggleKeyboard(); });
+// --- Keyboard toggle: managed by React Native, just track state for UI ---
+document.getElementById("btn-kbd").addEventListener("click", () => {
+  kbdOpen = !kbdOpen;
+  document.getElementById("btn-kbd").classList.toggle("active", kbdOpen);
+  if (window.ReactNativeWebView) {
+    window.ReactNativeWebView.postMessage(JSON.stringify({
+      type: "keyboard",
+      visible: kbdOpen,
+    }));
+  }
+});
+
+// React Native can tell us keyboard was dismissed
+window._vncSetKeyboardState = function(open) {
+  kbdOpen = open;
+  document.getElementById("btn-kbd").classList.toggle("active", kbdOpen);
+};
 
 document.getElementById("btn-fs").addEventListener("click", () => {
-  // In React Native WebView, always use the native immersive toggle
   if (window.ReactNativeWebView) {
     window.ReactNativeWebView.postMessage(JSON.stringify({ type: "toggleFullscreen" }));
     return;
   }
-  // Browser fallback (web platform)
   const el = document.documentElement;
   if (document.fullscreenElement) {
     document.exitFullscreen().catch(() => {});
@@ -273,6 +225,10 @@ document.getElementById("btn-fs").addEventListener("click", () => {
 });
 
 document.getElementById("btn-clip").addEventListener("click", async () => {
+  if (window.ReactNativeWebView) {
+    window.ReactNativeWebView.postMessage(JSON.stringify({ type: "paste" }));
+    return;
+  }
   try {
     const text = await navigator.clipboard.readText();
     if (text && rfb) rfb.clipboardPasteFrom(text);
