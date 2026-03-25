@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { StatusBar, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, StatusBar, StyleSheet, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { buildVncHtml } from './vnc-html';
 
@@ -37,7 +37,10 @@ export function VncViewer({ serverUrl, accessToken, vncPort, vncPassword, onTogg
   const key = `vnc_${vncPort}`;
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <StatusBar hidden={immersive} />
       <WebView
         key={key}
@@ -56,7 +59,7 @@ export function VncViewer({ serverUrl, accessToken, vncPort, vncPassword, onTogg
         automaticallyAdjustContentInsets={false}
         onMessage={handleMessage}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
