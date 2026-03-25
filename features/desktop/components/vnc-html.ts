@@ -57,6 +57,61 @@ export function buildVncHtml(wsUrl: string, vncPassword?: string | null): string
   #menu-panel button:hover { background: rgba(255,255,255,0.08); color: #fff; }
   #menu-panel button:active { background: rgba(255,255,255,0.12); }
   #menu-panel button.active { color: #4fc3f7; }
+
+  #clip-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 300;
+    align-items: center; justify-content: center;
+  }
+  #clip-overlay.open { display: flex; }
+
+  #clip-panel {
+    width: 90%; max-width: 360px;
+    background: rgba(25,25,25,0.95);
+    border-radius: 12px;
+    padding: 14px;
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  #clip-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+    color: #ddd; font: 13px/1.4 system-ui, sans-serif;
+  }
+  #clip-close {
+    background: none; border: none; color: #999; font-size: 16px;
+    cursor: pointer; padding: 2px 6px;
+  }
+  #clip-close:hover { color: #fff; }
+  #clip-text {
+    width: 100%; height: 100px;
+    background: rgba(0,0,0,0.4); color: #eee;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px; padding: 10px;
+    font: 13px/1.4 system-ui, -apple-system, sans-serif;
+    resize: vertical;
+  }
+  #clip-text::placeholder { color: #666; }
+  #clip-text:focus { outline: none; border-color: rgba(255,255,255,0.3); }
+  #clip-actions {
+    display: flex; gap: 8px; margin-top: 10px;
+  }
+  #clip-actions button {
+    flex: 1; padding: 8px 12px;
+    border-radius: 8px; border: none;
+    font: 12px/1.3 system-ui, sans-serif;
+    cursor: pointer;
+  }
+  #clip-send {
+    background: #2a6cb6; color: #fff;
+  }
+  #clip-send:active { background: #1e5a9e; }
+  #clip-type {
+    background: rgba(255,255,255,0.12); color: #ccc;
+  }
+  #clip-type:active { background: rgba(255,255,255,0.2); }
 </style>
 </head>
 <body>
@@ -67,8 +122,22 @@ export function buildVncHtml(wsUrl: string, vncPassword?: string | null): string
   <button id="btn-drag" class="active">✋ Drag Viewport</button>
   <button id="btn-kbd">⌨ Keyboard</button>
   <button id="btn-fs">⛶ Fullscreen</button>
-  <button id="btn-clip">📋 Paste</button>
+  <button id="btn-clip">📋 Clipboard</button>
   <button id="btn-keys">⌫ Ctrl+Alt+Del</button>
+</div>
+
+<div id="clip-overlay">
+  <div id="clip-panel">
+    <div id="clip-header">
+      <span>📋 Clipboard</span>
+      <button id="clip-close">✕</button>
+    </div>
+    <textarea id="clip-text" placeholder="Paste or type text here…"></textarea>
+    <div id="clip-actions">
+      <button id="clip-send">Send to remote</button>
+      <button id="clip-type">Type out text</button>
+    </div>
+  </div>
 </div>
 <button id="menu-toggle">▶</button>
 
@@ -233,15 +302,61 @@ document.getElementById("btn-fs").addEventListener("click", () => {
   }
 });
 
-document.getElementById("btn-clip").addEventListener("click", async () => {
-  if (window.ReactNativeWebView) {
-    window.ReactNativeWebView.postMessage(JSON.stringify({ type: "paste" }));
-    return;
+// --- Clipboard panel ---
+const clipOverlay = document.getElementById("clip-overlay");
+const clipText = document.getElementById("clip-text");
+
+function openClipboard() {
+  clipText.value = "";
+  clipOverlay.classList.add("open");
+  clipText.focus();
+  // Try to pre-fill from system clipboard
+  if (navigator.clipboard && navigator.clipboard.readText) {
+    navigator.clipboard.readText().then(t => {
+      if (t) clipText.value = t;
+    }).catch(() => {});
   }
-  try {
-    const text = await navigator.clipboard.readText();
-    if (text && rfb) rfb.clipboardPasteFrom(text);
-  } catch {}
+}
+
+function closeClipboard() {
+  clipOverlay.classList.remove("open");
+  if (rfb) rfb.focus();
+}
+
+document.getElementById("btn-clip").addEventListener("click", () => {
+  openClipboard();
+});
+
+document.getElementById("clip-close").addEventListener("click", closeClipboard);
+clipOverlay.addEventListener("click", (e) => {
+  if (e.target === clipOverlay) closeClipboard();
+});
+
+// Send to remote clipboard (paste into guest clipboard)
+document.getElementById("clip-send").addEventListener("click", () => {
+  const text = clipText.value;
+  if (text && rfb) {
+    rfb.clipboardPasteFrom(text);
+  }
+  closeClipboard();
+});
+
+// Type out text character by character (as if typed on keyboard)
+document.getElementById("clip-type").addEventListener("click", () => {
+  const text = clipText.value;
+  if (text && rfb) {
+    for (const ch of text) {
+      const code = ch.charCodeAt(0);
+      if (ch === '\\n') {
+        rfb.sendKey(0xff0d, null, true);
+        rfb.sendKey(0xff0d, null, false);
+      } else {
+        rfb.sendKey(code, null, true);
+        rfb.sendKey(code, null, false);
+      }
+    }
+  }
+  closeClipboard();
 });
 
 document.getElementById("btn-keys").addEventListener("click", () => {

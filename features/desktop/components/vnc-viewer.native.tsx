@@ -58,8 +58,6 @@ export function VncViewer({ serverUrl, accessToken, vncPort, vncPassword, onTogg
         } else {
           inputRef.current?.blur();
         }
-      } else if (data.type === 'paste') {
-        // TODO: read clipboard and send to WebView
       }
     } catch {}
   }, [onToggleFullscreen]);
