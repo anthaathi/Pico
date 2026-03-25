@@ -146,7 +146,12 @@ function connect() {
 connect();
 
 target.addEventListener("click", () => {
-  if (rfb) rfb.focus();
+  if (kbdOpen) {
+    // Keep keyboard open — re-focus the hidden input
+    kbdInput.focus({ preventScroll: true });
+  } else if (rfb) {
+    rfb.focus();
+  }
   if (window.ReactNativeWebView) {
     window.ReactNativeWebView.postMessage(JSON.stringify({ type: "tap" }));
   }
