@@ -63,7 +63,8 @@ export default function DesktopScreen() {
     };
   }, [isRunning]);
 
-  const [immersive, setImmersive] = useState(false);
+  const immersive = useDesktopStore((s) => s.immersive);
+  const setImmersive = useDesktopStore((s) => s.setImmersive);
   const [fabExpanded, setFabExpanded] = useState(false);
   const fabAnim = useRef(new Animated.Value(0)).current;
 
@@ -73,7 +74,7 @@ export default function DesktopScreen() {
 
   const handleToggleFullscreen = useCallback((fullscreen: boolean) => {
     setImmersive(fullscreen);
-  }, []);
+  }, [setImmersive]);
 
   const toggleFab = useCallback(() => {
     const next = !fabExpanded;

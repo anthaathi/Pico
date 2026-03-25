@@ -30,6 +30,7 @@ import { useAuthStore } from "@/features/auth/store";
 import { useWorkspaceStore } from "@/features/workspace/store";
 import { useAppMode } from "@/hooks/use-app-mode";
 import { AppModeToggle } from "../../components/app-mode-toggle";
+import { useDesktopStore } from "@/features/desktop/store";
 import { ChatSidebar } from "@/features/chat/components/chat-sidebar";
 import { ChatSheet } from "@/features/chat/components/chat-sheet";
 import { useChatStore } from "@/features/chat/store";
@@ -58,6 +59,7 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
   const isCodeMode = appMode === "code";
   const isChatMode = appMode === "chat";
   const isDesktopMode = appMode === "desktop";
+  const desktopImmersive = useDesktopStore((s) => s.immersive);
   const showSessions = hasServer && hasWorkspaces;
   const [sheetVisible, setSheetVisible] = useState(false);
   const [changesSheetVisible, setChangesSheetVisible] = useState(false);
@@ -235,14 +237,16 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
         style={[styles.wideContainer, { backgroundColor: colors.background }]}
         edges={["top"]}
       >
-        <View
-          style={[
-            styles.modeToggleRow,
-            { backgroundColor: isDark ? "#1a1a1a" : "#F5F4F1" },
-          ]}
-        >
-          <AppModeToggle />
-        </View>
+        {!(isDesktopMode && desktopImmersive) && (
+          <View
+            style={[
+              styles.modeToggleRow,
+              { backgroundColor: isDark ? "#1a1a1a" : "#F5F4F1" },
+            ]}
+          >
+            <AppModeToggle />
+          </View>
+        )}
         {hasServer && !isDesktopMode ? (
           <HeaderBar
             onToggleSidebar={handleToggleSidebar}
@@ -381,14 +385,16 @@ export function AdaptiveNavigation({ children }: AdaptiveNavigationProps) {
         style={[styles.narrowSafeArea, { backgroundColor: colors.background }]}
         edges={["top"]}
       >
-        <View
-          style={[
-            styles.modeToggleRow,
-            { backgroundColor: isDark ? "#1a1a1a" : "#F5F4F1" },
-          ]}
-        >
-          <AppModeToggle />
-        </View>
+        {!(isDesktopMode && desktopImmersive) && (
+          <View
+            style={[
+              styles.modeToggleRow,
+              { backgroundColor: isDark ? "#1a1a1a" : "#F5F4F1" },
+            ]}
+          >
+            <AppModeToggle />
+          </View>
+        )}
         {hasServer && !isDesktopMode && (
           <MobileHeaderBar
             onWorkspacePress={() => setSheetVisible(true)}

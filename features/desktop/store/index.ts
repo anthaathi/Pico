@@ -46,6 +46,7 @@ interface DesktopState {
   loading: boolean;
   stopping: boolean;
   backendsLoaded: boolean;
+  immersive: boolean;
 
   fetchBackends: () => Promise<void>;
   fetchStatus: () => Promise<void>;
@@ -53,6 +54,7 @@ interface DesktopState {
   startVirtual: (backendId: string, deId: string, resolution?: string) => Promise<void>;
   stopDesktop: () => Promise<void>;
   setDesktopInfo: (info: any) => void;
+  setImmersive: (value: boolean) => void;
 }
 
 const INITIAL_INFO: DesktopInfo = {
@@ -81,6 +83,7 @@ export const useDesktopStore = create<DesktopState>((set, get) => ({
   loading: false,
   stopping: false,
   backendsLoaded: false,
+  immersive: false,
 
   fetchBackends: async () => {
     try {
@@ -182,6 +185,10 @@ export const useDesktopStore = create<DesktopState>((set, get) => ({
 
   setDesktopInfo: (info: any) => {
     set({ desktopInfo: info });
+  },
+
+  setImmersive: (value: boolean) => {
+    set({ immersive: value });
   },
 
   stopDesktop: async () => {
