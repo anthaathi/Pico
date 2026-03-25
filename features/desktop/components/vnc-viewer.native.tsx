@@ -9,10 +9,9 @@ interface VncViewerProps {
   vncPort: number;
   vncPassword?: string | null;
   onToggleFullscreen?: (fullscreen: boolean) => void;
-  onTap?: () => void;
 }
 
-export function VncViewer({ serverUrl, accessToken, vncPort, vncPassword, onToggleFullscreen, onTap }: VncViewerProps) {
+export function VncViewer({ serverUrl, accessToken, vncPort, vncPassword, onToggleFullscreen }: VncViewerProps) {
   const [immersive, setImmersive] = useState(false);
   const immersiveRef = useRef(immersive);
   immersiveRef.current = immersive;
@@ -31,11 +30,9 @@ export function VncViewer({ serverUrl, accessToken, vncPort, vncPassword, onTogg
         const next = !immersiveRef.current;
         setImmersive(next);
         onToggleFullscreen?.(next);
-      } else if (data.type === 'tap') {
-        onTap?.();
       }
     } catch {}
-  }, [onToggleFullscreen, onTap]);
+  }, [onToggleFullscreen]);
 
   const key = `vnc_${vncPort}`;
 

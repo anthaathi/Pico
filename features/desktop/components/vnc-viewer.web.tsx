@@ -8,7 +8,6 @@ interface VncViewerProps {
   vncPort: number;
   vncPassword?: string | null;
   onToggleFullscreen?: (fullscreen: boolean) => void;
-  onTap?: () => void;
 }
 
 export function VncViewer({ serverUrl, accessToken, vncPort, vncPassword }: VncViewerProps) {

@@ -1,14 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Animated,
   Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { Square } from 'lucide-react-native';
 
@@ -21,13 +19,10 @@ import { DesktopSetup } from '@/features/desktop/components/desktop-setup';
 import { VncViewer } from '@/features/desktop/components/vnc-viewer';
 import { AppModeToggle } from '@/features/navigation/components/app-mode-toggle';
 
-const TOOLBAR_AUTO_HIDE_MS = 4000;
-
 export default function DesktopScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const colors = Colors[colorScheme];
-  const insets = useSafeAreaInsets();
 
   const activeServerId = useAuthStore((s) => s.activeServerId);
   const accessToken = useAuthStore((s) =>
@@ -65,45 +60,6 @@ export default function DesktopScreen() {
   }, [isRunning]);
 
   const [immersive, setImmersive] = useState(false);
-  const [toolbarVisible, setToolbarVisible] = useState(true);
-  const toolbarOpacity = useRef(new Animated.Value(1)).current;
-  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const showToolbar = useCallback(() => {
-    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    setToolbarVisible(true);
-    Animated.timing(toolbarOpacity, {
-      toValue: 1,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
-    hideTimerRef.current = setTimeout(() => {
-      Animated.timing(toolbarOpacity, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (finished) setToolbarVisible(false);
-      });
-    }, TOOLBAR_AUTO_HIDE_MS);
-  }, [toolbarOpacity]);
-
-  // Auto-hide toolbar on mount when running
-  useEffect(() => {
-    if (!isRunning || immersive) return;
-    hideTimerRef.current = setTimeout(() => {
-      Animated.timing(toolbarOpacity, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (finished) setToolbarVisible(false);
-      });
-    }, TOOLBAR_AUTO_HIDE_MS);
-    return () => {
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    };
-  }, [isRunning, immersive, toolbarOpacity]);
 
   const handleStop = useCallback(() => {
     stopDesktop();
@@ -112,12 +68,6 @@ export default function DesktopScreen() {
   const handleToggleFullscreen = useCallback((fullscreen: boolean) => {
     setImmersive(fullscreen);
   }, []);
-
-  const handleTapViewer = useCallback(() => {
-    if (!toolbarVisible) {
-      showToolbar();
-    }
-  }, [toolbarVisible, showToolbar]);
 
   if (loading || desktopInfo.status === 'starting') {
     return (
@@ -132,54 +82,44 @@ export default function DesktopScreen() {
 
   if (desktopInfo.status === 'running' && desktopInfo.vnc_port && serverAddress) {
     return (
-      <View style={[styles.container, { backgroundColor: '#111' }]}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        {!immersive && (
+          <View style={[styles.toolbar, { borderBottomColor: colors.border }]}>
+            <AppModeToggle />
+            <Text style={[styles.toolbarText, { color: colors.textSecondary }]} numberOfLines={1}>
+              {desktopInfo.mode === 'actual' ? 'Screen Share' : 'Virtual Desktop'}
+              {' — '}
+              {desktopInfo.display} (VNC :{desktopInfo.vnc_port})
+            </Text>
+            <Pressable
+              onPress={handleStop}
+              disabled={stopping}
+              style={({ pressed }) => [
+                styles.stopButton,
+                {
+                  backgroundColor: isDark ? '#3A1A1A' : '#FFF0F0',
+                  opacity: stopping ? 0.5 : pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              {stopping ? (
+                <ActivityIndicator size={14} color={colors.destructive} />
+              ) : (
+                <Square size={14} color={colors.destructive} />
+              )}
+              <Text style={[styles.stopText, { color: colors.destructive }]}>
+                {stopping ? 'Stopping...' : 'Stop'}
+              </Text>
+            </Pressable>
+          </View>
+        )}
         <VncViewer
           serverUrl={serverAddress}
           accessToken={accessToken}
           vncPort={desktopInfo.vnc_port}
           vncPassword={desktopInfo.vnc_password}
           onToggleFullscreen={handleToggleFullscreen}
-          onTap={handleTapViewer}
         />
-        {!immersive && (toolbarVisible || Platform.OS === 'web') && (
-          <Animated.View
-            style={[
-              styles.overlayToolbar,
-              { paddingTop: insets.top + 4, opacity: Platform.OS === 'web' ? 1 : toolbarOpacity },
-            ]}
-            pointerEvents="box-none"
-          >
-            <View style={styles.overlayToolbarInner} pointerEvents="auto">
-              <AppModeToggle />
-              <View style={styles.toolbarInfo}>
-                <Text style={styles.toolbarText} numberOfLines={1}>
-                  {desktopInfo.mode === 'actual' ? 'Screen Share' : 'Virtual Desktop'}
-                  {' — '}
-                  {desktopInfo.display}
-                </Text>
-              </View>
-              <Pressable
-                onPress={handleStop}
-                disabled={stopping}
-                style={({ pressed }) => [
-                  styles.stopButton,
-                  {
-                    opacity: stopping ? 0.5 : pressed ? 0.7 : 1,
-                  },
-                ]}
-              >
-                {stopping ? (
-                  <ActivityIndicator size={12} color="#FF6B6B" />
-                ) : (
-                  <Square size={12} color="#FF6B6B" />
-                )}
-                <Text style={styles.stopText}>
-                  {stopping ? 'Stopping...' : 'Stop'}
-                </Text>
-              </Pressable>
-            </View>
-          </Animated.View>
-        )}
       </View>
     );
   }
@@ -205,52 +145,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: Fonts.sans,
   },
-  overlayToolbar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 100,
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingBottom: 8,
-  },
-  overlayToolbarInner: {
+  toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    backgroundColor: 'rgba(20,20,20,0.85)',
-    borderRadius: 12,
-    paddingHorizontal: 10,
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    ...Platform.select({
-      web: {
-        backdropFilter: 'blur(12px)',
-      },
-      default: {},
-    }),
-  },
-  toolbarInfo: {
-    flex: 1,
-    marginHorizontal: 4,
+    borderBottomWidth: 0.5,
+    gap: 10,
   },
   toolbarText: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: Fonts.mono,
-    color: '#999',
+    flex: 1,
   },
   stopButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 6,
-    backgroundColor: 'rgba(255,100,100,0.15)',
   },
   stopText: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: Fonts.sansMedium,
-    color: '#FF6B6B',
   },
 });
