@@ -1,0 +1,2 @@
+https://auth.openai.com/oauth/authorize?response_type=code&client_id=app_EMoamEEZ73f0CkXaXp7hrann&redirect_uri=http%3A%2F%2Flocalhost%3A1455%2Fauth%2Fcallback&scope=openid+profile+email+offline_access&code_challenge=_AZMhwEsqCmrReafB3pYJ_VHnjLxLeKL8h0NMIxLF_U&code_challenge_metho 
+ d=S256&state=e719ff0c43c3c6db5b8afe062a2c0896&id_token_add_organizations=true&codex_cli_simplified_flow=true&originator=pi 
