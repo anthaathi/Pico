@@ -1,6 +1,6 @@
 # Pi UI
 
-A mobile companion app for [pi-coding-agent](https://github.com/mariozechner/pi-coding-agent). Run the server on your machine, scan the QR code from your phone, and control your coding agent remotely.
+A mobile companion app for [pi-coding-agent](https://github.com/badlogic/pi-mono/). Run the server on your machine, scan the QR code from your phone, and control your coding agent remotely.
 
 ## Quick Start
 

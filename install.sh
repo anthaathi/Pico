@@ -45,11 +45,16 @@ has_tty() { [ -t 0 ] || [ -t 2 ]; }
 tty_fd() {
   if [ -t 0 ]; then
     echo "/dev/stdin"
-  elif [ -r /dev/tty ] && (echo < /dev/tty) 2>/dev/null; then
+  elif [ -r /dev/tty ] && (: < /dev/tty) 2>/dev/null; then
     echo "/dev/tty"
   else
     echo ""
   fi
+}
+
+can_read_from() {
+  local input="$1"
+  [ -n "$input" ] && (: < "$input") 2>/dev/null
 }
 
 supports_color() {
@@ -57,14 +62,14 @@ supports_color() {
 }
 
 if supports_color; then
-  BOLD="\033[1m"
-  DIM="\033[2m"
-  RESET="\033[0m"
-  BLUE="\033[34m"
-  GREEN="\033[32m"
-  YELLOW="\033[33m"
-  RED="\033[31m"
-  CYAN="\033[36m"
+  BOLD=$'\033[1m'
+  DIM=$'\033[2m'
+  RESET=$'\033[0m'
+  BLUE=$'\033[34m'
+  GREEN=$'\033[32m'
+  YELLOW=$'\033[33m'
+  RED=$'\033[31m'
+  CYAN=$'\033[36m'
 else
   BOLD="" DIM="" RESET="" BLUE="" GREEN="" YELLOW="" RED="" CYAN=""
 fi
@@ -541,12 +546,13 @@ do_install() {
   if [ ! -f "${INSTALL_DIR}/config.toml" ]; then
     local tty
     tty="$(tty_fd)"
-    if [ -n "$tty" ]; then
+    if can_read_from "$tty"; then
       info "Setting up pi-server for the first time..."
       echo ""
       (cd "$INSTALL_DIR" && "./${BINARY}" init < "$tty")
       echo ""
     else
+      warn "No interactive terminal detected for first-time setup."
       info "Run 'cd ${INSTALL_DIR} && ./${BINARY} init' to set up credentials."
     fi
   fi
