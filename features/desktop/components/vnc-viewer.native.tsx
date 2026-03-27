@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import {
     ActivityIndicator,
+    BackHandler,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -373,6 +374,24 @@ export function VncViewer({
         session.disconnect();
         session.connect();
     }, [session]);
+
+    useEffect(() => {
+        const handler = () => {
+            if (kbdVisible) {
+                setKbdVisible(false);
+                inputRef.current?.blur();
+                return true;
+            }
+            if (immersive) {
+                setImmersive(false);
+                onToggleFullscreen?.(false);
+                return true;
+            }
+            return false;
+        };
+        const sub = BackHandler.addEventListener('hardwareBackPress', handler);
+        return () => sub.remove();
+    }, [kbdVisible, immersive, onToggleFullscreen]);
 
     const isConnected = session.connectionState === 'connected';
     const isConnecting = session.connectionState === 'connecting' || session.connectionState === 'handshaking';
