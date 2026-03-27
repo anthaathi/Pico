@@ -314,8 +314,16 @@ export function VncViewer({
         [panGesture, tapGesture, longPressGesture, twoFingerPanGesture],
     );
 
+    const layoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const handleCanvasLayout = useCallback((e: LayoutChangeEvent) => {
-        setCanvasSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height });
+        const { width, height } = e.nativeEvent.layout;
+        if (layoutTimerRef.current) clearTimeout(layoutTimerRef.current);
+        layoutTimerRef.current = setTimeout(() => {
+            setCanvasSize((prev) => {
+                if (prev.width === Math.round(width) && prev.height === Math.round(height)) return prev;
+                return { width: Math.round(width), height: Math.round(height) };
+            });
+        }, 150);
     }, []);
 
     const handleToggleKeyboard = useCallback(() => {
@@ -422,8 +430,7 @@ export function VncViewer({
         <GestureHandlerRootView style={styles.root}>
             <KeyboardAvoidingView
                 style={styles.root}
-                behavior={Platform.OS === 'ios' ? 'position' : undefined}
-                contentContainerStyle={styles.root}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
                 {showChrome && (
                     <View style={[styles.chromeBar, { backgroundColor: colors.surfaceRaised, borderBottomColor: colors.border }]}>
