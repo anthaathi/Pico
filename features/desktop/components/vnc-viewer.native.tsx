@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import {
     ActivityIndicator,
+    Animated,
     BackHandler,
     KeyboardAvoidingView,
     Platform,
@@ -48,6 +49,7 @@ interface VncViewerProps {
 }
 
 const LONG_PRESS_MS = 500;
+const MENU_WIDTH = 160;
 const TAP_MOVE_THRESHOLD = 8;
 const TRACKPAD_SENSITIVITY = 1.5;
 
@@ -62,6 +64,8 @@ export function VncViewer({
 
     const [immersive, setImmersive] = useState(false);
     const [kbdVisible, setKbdVisible] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
+    const menuAnim = useRef(new Animated.Value(0)).current;
     const [skImage, setSkImage] = useState<SkImage | null>(null);
     const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
 
@@ -375,8 +379,23 @@ export function VncViewer({
         session.connect();
     }, [session]);
 
+    const toggleMenu = useCallback(() => {
+        const next = !menuOpen;
+        setMenuOpen(next);
+        Animated.spring(menuAnim, {
+            toValue: next ? 1 : 0,
+            tension: 300,
+            friction: 26,
+            useNativeDriver: true,
+        }).start();
+    }, [menuOpen, menuAnim]);
+
     useEffect(() => {
         const handler = () => {
+            if (menuOpen) {
+                toggleMenu();
+                return true;
+            }
             if (kbdVisible) {
                 setKbdVisible(false);
                 inputRef.current?.blur();
@@ -391,7 +410,7 @@ export function VncViewer({
         };
         const sub = BackHandler.addEventListener('hardwareBackPress', handler);
         return () => sub.remove();
-    }, [kbdVisible, immersive, onToggleFullscreen]);
+    }, [kbdVisible, immersive, menuOpen, onToggleFullscreen, toggleMenu]);
 
     const isConnected = session.connectionState === 'connected';
     const isConnecting = session.connectionState === 'connecting' || session.connectionState === 'handshaking';
@@ -449,37 +468,72 @@ export function VncViewer({
                     </GestureDetector>
                 </View>
 
-                {isConnected && !immersive && (
-                    <View style={[styles.toolbar, { backgroundColor: colors.surfaceRaised, borderTopColor: colors.border }]}>
-                        <Text style={[styles.statusText, { color: colors.textSecondary }]} numberOfLines={1}>
-                            {session.framebufferWidth}x{session.framebufferHeight}
-                        </Text>
-                        <Pressable
-                            onPress={handleToggleKeyboard}
-                            style={({ pressed }) => [
-                                styles.toolbarButton,
+                {isConnected && (
+                    <>
+                        <Animated.View
+                            style={[
+                                styles.menuPanel,
                                 {
-                                    backgroundColor: kbdVisible ? colors.activeIndicator : colors.border,
-                                    opacity: pressed ? 0.7 : 1,
+                                    backgroundColor: 'rgba(25,25,25,0.92)',
+                                    transform: [{
+                                        translateX: menuAnim.interpolate({
+                                            inputRange: [0, 1],
+                                            outputRange: [-MENU_WIDTH, 0],
+                                        }),
+                                    }],
                                 },
                             ]}
                         >
-                            <Text style={[styles.toolbarButtonText, { color: kbdVisible ? colors.background : colors.text }]}>
-                                Keyboard
+                            <Pressable
+                                onPress={handleToggleKeyboard}
+                                style={({ pressed }) => [
+                                    styles.menuItem,
+                                    kbdVisible && { backgroundColor: 'rgba(255,255,255,0.12)' },
+                                    pressed && { backgroundColor: 'rgba(255,255,255,0.08)' },
+                                ]}
+                            >
+                                <Text style={[styles.menuItemText, kbdVisible && { color: '#4fc3f7' }]}>
+                                    Keyboard
+                                </Text>
+                            </Pressable>
+                            <Pressable
+                                onPress={handleToggleFullscreen}
+                                style={({ pressed }) => [
+                                    styles.menuItem,
+                                    pressed && { backgroundColor: 'rgba(255,255,255,0.08)' },
+                                ]}
+                            >
+                                <Text style={styles.menuItemText}>
+                                    {immersive ? 'Exit Fullscreen' : 'Fullscreen'}
+                                </Text>
+                            </Pressable>
+                            <View style={styles.menuDivider} />
+                            <Pressable
+                                onPress={handleReconnect}
+                                style={({ pressed }) => [
+                                    styles.menuItem,
+                                    pressed && { backgroundColor: 'rgba(255,255,255,0.08)' },
+                                ]}
+                            >
+                                <Text style={styles.menuItemText}>Reconnect</Text>
+                            </Pressable>
+                            <View style={styles.menuDivider} />
+                            <Text style={styles.menuInfo}>
+                                {session.framebufferWidth}x{session.framebufferHeight}
                             </Text>
-                        </Pressable>
+                        </Animated.View>
                         <Pressable
-                            onPress={handleToggleFullscreen}
-                            style={({ pressed }) => [
-                                styles.toolbarButton,
-                                { backgroundColor: colors.border, opacity: pressed ? 0.7 : 1 },
+                            onPress={toggleMenu}
+                            style={[
+                                styles.menuToggle,
+                                menuOpen && styles.menuToggleOpen,
                             ]}
                         >
-                            <Text style={[styles.toolbarButtonText, { color: colors.text }]}>
-                                {immersive ? 'Exit' : 'Fullscreen'}
+                            <Text style={styles.menuToggleText}>
+                                {menuOpen ? '\u25C0' : '\u25B6'}
                             </Text>
                         </Pressable>
-                    </View>
+                    </>
                 )}
 
                 <TextInput
@@ -532,27 +586,59 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#000',
     },
-    toolbar: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        gap: 8,
-        borderTopWidth: 0.5,
+    menuPanel: {
+        position: 'absolute',
+        left: 0,
+        top: '50%',
+        marginTop: -100,
+        width: MENU_WIDTH,
+        borderTopRightRadius: 10,
+        borderBottomRightRadius: 10,
+        paddingVertical: 6,
+        zIndex: 200,
     },
-    toolbarButton: {
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        borderRadius: 4,
+    menuItem: {
+        paddingHorizontal: 14,
+        paddingVertical: 10,
     },
-    toolbarButtonText: {
-        fontSize: 12,
-        fontFamily: Fonts.sansMedium,
+    menuItemText: {
+        color: '#ccc',
+        fontSize: 13,
+        fontFamily: Fonts.sans,
     },
-    statusText: {
-        flex: 1,
+    menuDivider: {
+        height: StyleSheet.hairlineWidth,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        marginHorizontal: 10,
+        marginVertical: 2,
+    },
+    menuInfo: {
+        color: '#666',
         fontSize: 11,
         fontFamily: Fonts.mono,
+        paddingHorizontal: 14,
+        paddingVertical: 6,
+    },
+    menuToggle: {
+        position: 'absolute',
+        left: 0,
+        top: '50%',
+        marginTop: -28,
+        width: 24,
+        height: 56,
+        backgroundColor: 'rgba(30,30,30,0.7)',
+        borderTopRightRadius: 8,
+        borderBottomRightRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 201,
+    },
+    menuToggleOpen: {
+        left: MENU_WIDTH,
+    },
+    menuToggleText: {
+        color: '#aaa',
+        fontSize: 12,
     },
     hiddenInput: {
         position: 'absolute',
