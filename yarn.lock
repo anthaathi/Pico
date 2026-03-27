@@ -17,6 +17,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@assemblyscript/loader@npm:^0.28.10":
+  version: 0.28.10
+  resolution: "@assemblyscript/loader@npm:0.28.10"
+  checksum: 10c0/f1f2aa4061a3ae077878cdebc8f6cb17c1d9de1f6f9848073bba4a45644f7e81ef0eb63b06f0e19fb41203978b978d86ca391b9cd139c39ff1fec77d57c4d9d4
+  languageName: node
+  linkType: hard
+
 "@babel/code-frame@npm:^7.12.13, @babel/code-frame@npm:^7.20.0, @babel/code-frame@npm:^7.24.7, @babel/code-frame@npm:^7.28.6, @babel/code-frame@npm:^7.29.0":
   version: 7.29.0
   resolution: "@babel/code-frame@npm:7.29.0"
@@ -1991,8 +1998,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@pi-ui/client@workspace:packages/pi-client"
   dependencies:
+    "@assemblyscript/loader": "npm:^0.28.10"
     "@hey-api/client-fetch": "npm:^0.11.0"
     "@hey-api/openapi-ts": "npm:^0.73.0"
+    fflate: "npm:^0.8.2"
     rxjs: "npm:^7.8.1"
     typescript: "npm:~5.8.0"
   peerDependencies:
@@ -2674,6 +2683,27 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@shopify/react-native-skia@npm:2.2.12":
+  version: 2.2.12
+  resolution: "@shopify/react-native-skia@npm:2.2.12"
+  dependencies:
+    canvaskit-wasm: "npm:0.40.0"
+    react-reconciler: "npm:0.31.0"
+  peerDependencies:
+    react: ">=19.0"
+    react-native: ">=0.78"
+    react-native-reanimated: ">=3.19.1"
+  peerDependenciesMeta:
+    react-native:
+      optional: true
+    react-native-reanimated:
+      optional: true
+  bin:
+    setup-skia-web: scripts/setup-canvaskit.js
+  checksum: 10c0/57b175f8c8e44b3910a3f73f397b4db155540ba4648cd957b7f6fd24397e0f88670d7c43d3b98bd650685caa0241b5cb7d1bd0e60e8cfaab60acbf34edd4c5af
+  languageName: node
+  linkType: hard
+
 "@sinclair/typebox@npm:^0.27.8":
   version: 0.27.10
   resolution: "@sinclair/typebox@npm:0.27.10"
@@ -3175,6 +3205,13 @@ __metadata:
   peerDependencies:
     "@urql/core": ^5.0.0
   checksum: 10c0/3d7e9879aef81714ca04c8b4dc1633d61b2090f5a6d5b8aac538633d41c26e8749e18bf66bed2936b209d038b3acdd21f20bc5ec4229a449b5a0b13d5694effe
+  languageName: node
+  linkType: hard
+
+"@webgpu/types@npm:0.1.21":
+  version: 0.1.21
+  resolution: "@webgpu/types@npm:0.1.21"
+  checksum: 10c0/74de9683b70064aeadcdd31381747650b323e7e2183fb38f90a35f1a79f80ad267c0a2ee5010c264befb3d31ad213dbdffa04897e2808f6b04feff8d66bc53e0
   languageName: node
   linkType: hard
 
@@ -3995,6 +4032,15 @@ __metadata:
   version: 1.0.30001779
   resolution: "caniuse-lite@npm:1.0.30001779"
   checksum: 10c0/6cae9492140722ebc6be76cf3057ff8d1b427c7d8c2588b92bba7979bb1ec7ece457c7d3578a099a757ec12cb01b893fe05f224ac8feb841072897f0c12de6cc
+  languageName: node
+  linkType: hard
+
+"canvaskit-wasm@npm:0.40.0":
+  version: 0.40.0
+  resolution: "canvaskit-wasm@npm:0.40.0"
+  dependencies:
+    "@webgpu/types": "npm:0.1.21"
+  checksum: 10c0/dde817c0ef979a67afad4ac3adf31c03133af2592efec17f715a98508fdf801104fbf05af29723fb39b4d8b2798ce5306bb3cb5c062209d9d90a750430f3361d
   languageName: node
   linkType: hard
 
@@ -5749,6 +5795,13 @@ __metadata:
     picomatch:
       optional: true
   checksum: 10c0/e345083c4306b3aed6cb8ec551e26c36bab5c511e99ea4576a16750ddc8d3240e63826cc624f5ae17ad4dc82e68a253213b60d556c11bfad064b7607847ed07f
+  languageName: node
+  linkType: hard
+
+"fflate@npm:^0.8.2":
+  version: 0.8.2
+  resolution: "fflate@npm:0.8.2"
+  checksum: 10c0/03448d630c0a583abea594835a9fdb2aaf7d67787055a761515bf4ed862913cfd693b4c4ffd5c3f3b355a70cf1e19033e9ae5aedcca103188aaff91b8bd6e293
   languageName: node
   linkType: hard
 
@@ -8650,6 +8703,7 @@ __metadata:
     "@react-navigation/bottom-tabs": "npm:^7.4.0"
     "@react-navigation/elements": "npm:^2.6.3"
     "@react-navigation/native": "npm:^7.1.8"
+    "@shopify/react-native-skia": "npm:2.2.12"
     "@tanstack/react-query": "npm:^5.90.21"
     "@types/react": "npm:~19.1.0"
     "@types/react-dom": "npm:^19.2.3"
@@ -9220,6 +9274,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-reconciler@npm:0.31.0":
+  version: 0.31.0
+  resolution: "react-reconciler@npm:0.31.0"
+  dependencies:
+    scheduler: "npm:^0.25.0"
+  peerDependencies:
+    react: ^19.0.0
+  checksum: 10c0/97920e1866c7206e200c3920c133c2e85f62a3c54fd9bc4b83c10c558d83d98eb378caab4fe37498e0cc1b1b2665d898627f2ae2537b29c8ab295ec8abc0c580
+  languageName: node
+  linkType: hard
+
 "react-refresh@npm:^0.14.0, react-refresh@npm:^0.14.2":
   version: 0.14.2
   resolution: "react-refresh@npm:0.14.2"
@@ -9616,6 +9681,13 @@ __metadata:
   version: 0.26.0
   resolution: "scheduler@npm:0.26.0"
   checksum: 10c0/5b8d5bfddaae3513410eda54f2268e98a376a429931921a81b5c3a2873aab7ca4d775a8caac5498f8cbc7d0daeab947cf923dbd8e215d61671f9f4e392d34356
+  languageName: node
+  linkType: hard
+
+"scheduler@npm:^0.25.0":
+  version: 0.25.0
+  resolution: "scheduler@npm:0.25.0"
+  checksum: 10c0/a4bb1da406b613ce72c1299db43759526058fdcc413999c3c3e0db8956df7633acf395cb20eb2303b6a65d658d66b6585d344460abaee8080b4aa931f10eaafe
   languageName: node
   linkType: hard
 

@@ -29,6 +29,7 @@
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
+    "@shopify/react-native-skia": "2.2.12",
     "@tanstack/react-query": "^5.90.21",
     "expo": "~54.0.33",
     "expo-audio": "~1.1.1",

@@ -6,10 +6,13 @@
   "types": "src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "api:generate": "openapi-ts -i http://127.0.0.1:5454/api-docs/openapi.json -o ./src/generated -c @hey-api/client-fetch"
+    "api:generate": "openapi-ts -i http://127.0.0.1:5454/api-docs/openapi.json -o ./src/generated -c @hey-api/client-fetch",
+    "build:wasm": "tsx scripts/build-wasm-decoder.ts"
   },
   "dependencies": {
+    "@assemblyscript/loader": "^0.28.10",
     "@hey-api/client-fetch": "^0.11.0",
+    "fflate": "^0.8.2",
     "rxjs": "^7.8.1"
   },
   "peerDependencies": {
