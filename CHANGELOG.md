@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.6.0](https://github.com/anthaathi/pi-companion/compare/v1.5.0...v1.6.0) (2026-03-27)
+
+
+### Features
+
+* default init username to OS username instead of admin ([60e3b63](https://github.com/anthaathi/pi-companion/commit/60e3b639318202cdbd6fcbd2b554211ad4e64ba1))
+* **desktop:** move to new native vnc render pipeline ([#18](https://github.com/anthaathi/pi-companion/issues/18)) ([5f4cc68](https://github.com/anthaathi/pi-companion/commit/5f4cc689313d173e1b6d1653443845f7e640a5e5))
+* removed random file ([a2fe4c8](https://github.com/anthaathi/pi-companion/commit/a2fe4c8ae0f80a9bd0a48ed6990c316c2a9b30b0))
+
 ## [1.5.0](https://github.com/anthaathi/pi-companion/compare/v1.4.0...v1.5.0) (2026-03-26)
 
 
