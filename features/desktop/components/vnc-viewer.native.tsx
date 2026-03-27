@@ -17,7 +17,6 @@ import {
 import {
     Canvas,
     Image,
-    Circle,
     Skia,
     AlphaType,
     ColorType,
@@ -47,9 +46,6 @@ interface VncViewerProps {
     onToggleFullscreen?: (fullscreen: boolean) => void;
 }
 
-const CURSOR_RADIUS = 6;
-const CURSOR_COLOR = 'rgba(255, 80, 80, 0.8)';
-const CURSOR_BORDER_COLOR = 'rgba(255, 255, 255, 0.9)';
 const LONG_PRESS_MS = 500;
 const TAP_MOVE_THRESHOLD = 8;
 const TRACKPAD_SENSITIVITY = 1.5;
@@ -206,11 +202,6 @@ export function VncViewer({
         const y = (canvasSize.height - h) / 2;
         return { x, y, width: w, height: h };
     }, [scale, canvasSize, session.framebufferWidth, session.framebufferHeight]);
-
-    const cursorScreen = useMemo(() => ({
-        x: imageLayout.x + cursorPos.x * scale,
-        y: imageLayout.y + cursorPos.y * scale,
-    }), [cursorPos, scale, imageLayout]);
 
     const jsSendPointer = useCallback((mask: number, x: number, y: number) => {
         session.sendPointerEvent(mask, x, y);
@@ -433,22 +424,7 @@ export function VncViewer({
                                         fit="fill"
                                     />
                                 )}
-                                {isConnected && (
-                                    <>
-                                        <Circle
-                                            cx={cursorScreen.x}
-                                            cy={cursorScreen.y}
-                                            r={CURSOR_RADIUS + 1}
-                                            color={CURSOR_BORDER_COLOR}
-                                        />
-                                        <Circle
-                                            cx={cursorScreen.x}
-                                            cy={cursorScreen.y}
-                                            r={CURSOR_RADIUS}
-                                            color={CURSOR_COLOR}
-                                        />
-                                    </>
-                                )}
+
                             </Canvas>
                         </View>
                     </GestureDetector>
