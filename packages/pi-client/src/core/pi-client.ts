@@ -435,7 +435,7 @@ export class PiClient {
     await this.api.killSession(sessionId);
   }
 
-  async createAgentSession(params: { workspaceId: string; sessionPath?: string }) {
+  async createAgentSession(params: { workspaceId: string; sessionPath?: string; modeId?: string }) {
     const info = await this.api.createAgentSession(params);
     const subject = this._getOrCreateSessionSubject(info.session_id);
     subject.next({ ...createEmptySessionState(), isReady: true });
@@ -443,7 +443,7 @@ export class PiClient {
     return info;
   }
 
-  async createChatSession(params?: { noTools?: boolean; systemPrompt?: string }) {
+  async createChatSession(params?: { noTools?: boolean; systemPrompt?: string; modeId?: string }) {
     return this.api.createChatSession(params);
   }
 

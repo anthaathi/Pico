@@ -31,6 +31,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAppSettingsStore, ThemeMode } from '@/features/settings/store';
 import { SpeechSettings } from '@/features/speech/components/speech-settings';
 import { CustomModelsSection } from '@/features/settings/components/custom-models-section';
+import { AgentModesSection } from '@/features/settings/components/agent-modes-section';
 import { useChatStore } from '@/features/chat/store';
 import { sdk, unwrapApiData } from '@pi-ui/client';
 import type { PackageStatus } from '@pi-ui/client';
@@ -346,6 +347,9 @@ export default function SettingsScreen() {
 
         {/* Pi Agent Update */}
         <PackageUpdateSection isDark={isDark} textPrimary={textPrimary} textMuted={textMuted} />
+
+        {/* Agent Modes */}
+        <AgentModesSection isDark={isDark} />
 
         {/* Custom Models */}
         <CustomModelsSection isDark={isDark} />

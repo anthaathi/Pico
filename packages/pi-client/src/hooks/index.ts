@@ -49,3 +49,8 @@ export {
   type CustomModelsState,
   type ProvidersMap,
 } from "./use-custom-models";
+export {
+  useAgentModes,
+  type AgentModesHandle,
+  type AgentModesState,
+} from "./use-agent-modes";

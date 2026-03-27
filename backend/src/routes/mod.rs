@@ -6,6 +6,7 @@ pub mod desktop;
 pub mod fs;
 pub mod git;
 pub mod health;
+pub mod mode;
 pub mod package;
 pub mod task;
 pub mod workspace;

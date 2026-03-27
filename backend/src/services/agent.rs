@@ -109,6 +109,10 @@ impl AgentManager {
         }
     }
 
+    pub fn default_provider_id(&self) -> String {
+        self.default_provider_id.to_string()
+    }
+
     #[allow(dead_code)]
     pub async fn register_provider(&self, provider: Arc<dyn AgentProvider>) {
         let id = provider.provider_id().to_string();
@@ -132,24 +136,6 @@ impl AgentManager {
     // -----------------------------------------------------------------------
     // Session lifecycle
     // -----------------------------------------------------------------------
-
-    pub async fn create_session(
-        &self,
-        workspace_id: String,
-        cwd: String,
-        session_path: Option<String>,
-    ) -> Result<AgentSessionInfo, String> {
-        self.create_session_with_provider(
-            &self.default_provider_id.clone(),
-            workspace_id,
-            cwd,
-            session_path,
-            None,
-            None,
-            vec![],
-        )
-        .await
-    }
 
     pub async fn create_session_with_provider(
         &self,
@@ -238,37 +224,6 @@ impl AgentManager {
             thinking_level: snapshot.thinking_level,
             process_alive: true,
         })
-    }
-
-    pub async fn create_chat_session(
-        &self,
-        workspace_id: String,
-        cwd: String,
-        system_prompt: Option<String>,
-        no_tools: bool,
-    ) -> Result<AgentSessionInfo, String> {
-        std::fs::create_dir_all(&cwd)
-            .map_err(|e| format!("Failed to create chat dir: {e}"))?;
-
-        let mut extra_args = Vec::new();
-        if no_tools {
-            extra_args.push("--no-tools".to_string());
-        }
-        if let Some(prompt) = system_prompt {
-            extra_args.push("--append-system-prompt".to_string());
-            extra_args.push(prompt);
-        }
-
-        self.create_session_with_provider(
-            &self.default_provider_id.clone(),
-            workspace_id,
-            cwd,
-            None,
-            None,
-            None,
-            extra_args,
-        )
-        .await
     }
 
     pub async fn touch_session(

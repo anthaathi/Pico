@@ -18,6 +18,7 @@ const CHAT_WORKSPACE_ID: &str = "__chat__";
 pub struct CreateChatSessionRequest {
     pub no_tools: Option<bool>,
     pub system_prompt: Option<String>,
+    pub mode_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -65,17 +66,57 @@ pub async fn create_session(
     let system_prompt = req.system_prompt.or_else(|| state.config.chat_system_prompt());
     let no_tools = req.no_tools.unwrap_or_else(|| state.config.chat_no_tools());
 
+    let mode_args = if let Some(ref mode_id) = req.mode_id {
+        match state.db.get_agent_mode(mode_id) {
+            Ok(Some(mode)) => mode.to_cli_args(),
+            Ok(None) => {
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(ApiResponse::err("Mode not found")),
+                );
+            }
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiResponse::err(format!("DB error: {e}"))),
+                );
+            }
+        }
+    } else {
+        vec![]
+    };
+
+    let mut extra_args = Vec::new();
+    if no_tools {
+        extra_args.push("--no-tools".to_string());
+    }
+    if let Some(prompt) = system_prompt {
+        extra_args.push("--append-system-prompt".to_string());
+        extra_args.push(prompt);
+    }
+    extra_args.extend(mode_args);
+
+    std::fs::create_dir_all(&cwd).ok();
+
     match state
         .agent
-        .create_chat_session(
+        .create_session_with_provider(
+            &state.agent.default_provider_id(),
             CHAT_WORKSPACE_ID.to_string(),
             cwd,
-            system_prompt,
-            no_tools,
+            None,
+            None,
+            None,
+            extra_args,
         )
         .await
     {
         Ok(info) => {
+            if let Some(ref mode_id) = req.mode_id {
+                if let Err(e) = state.db.set_session_mode(&info.session_id, mode_id) {
+                    tracing::warn!("Failed to record session mode: {e}");
+                }
+            }
             if let Err(err) = state.agent.emit_agent_state(&info.session_id).await {
                 tracing::warn!(
                     "Failed to emit initial agent_state for chat session {}: {}",

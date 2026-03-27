@@ -98,6 +98,10 @@ use crate::services;
         routes::chat::list_sessions,
         routes::chat::delete_session,
         routes::chat::touch_session,
+        routes::mode::list_modes,
+        routes::mode::create_mode,
+        routes::mode::update_mode,
+        routes::mode::delete_mode,
         routes::custom_models::get_custom_models,
         routes::custom_models::save_custom_models,
         routes::task::get_config,
@@ -191,6 +195,9 @@ use crate::services;
         models::TaskLogs,
         models::StartTaskRequest,
         models::TaskActionRequest,
+        models::mode::AgentMode,
+        models::mode::CreateAgentModeRequest,
+        models::mode::UpdateAgentModeRequest,
     )),
     modifiers(&SecurityAddon),
     tags(
@@ -204,6 +211,7 @@ use crate::services;
         (name = "agent", description = "Pi coding agent RPC management"),
         (name = "chat", description = "Chat mode sessions (no workspace required)"),
         (name = "custom-models", description = "Custom model provider configuration"),
+        (name = "modes", description = "Agent mode presets"),
         (name = "tasks", description = "Task runner management"),
     ),
     info(

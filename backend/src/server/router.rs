@@ -16,6 +16,7 @@ pub fn api_routes() -> Router<AppState> {
         .merge(custom_model_routes())
         .merge(task_routes())
         .merge(desktop_routes())
+        .merge(mode_routes())
 }
 
 fn auth_routes() -> Router<AppState> {
@@ -249,6 +250,14 @@ fn desktop_routes() -> Router<AppState> {
         .route("/desktop/start", post(routes::desktop::start_desktop))
         .route("/desktop/stop", post(routes::desktop::stop_desktop))
         .route("/desktop/ws", get(routes::desktop::vnc_websocket))
+}
+
+fn mode_routes() -> Router<AppState> {
+    Router::new()
+        .route("/modes", get(routes::mode::list_modes))
+        .route("/modes", post(routes::mode::create_mode))
+        .route("/modes/{mode_id}", axum::routing::put(routes::mode::update_mode))
+        .route("/modes/{mode_id}", delete(routes::mode::delete_mode))
 }
 
 fn task_routes() -> Router<AppState> {

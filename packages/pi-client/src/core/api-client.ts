@@ -24,6 +24,7 @@ import type {
   TasksConfig,
   TaskLogs,
   TaskDefinition,
+  AgentMode,
   CustomModelsConfig,
   CustomProvider,
   FsListResponse,
@@ -233,11 +234,13 @@ export class ApiClient {
   async createAgentSession(params: {
     workspaceId: string;
     sessionPath?: string;
+    modeId?: string;
   }): Promise<AgentSessionInfo> {
     const result = await sdk.createSession({
       body: {
         workspace_id: params.workspaceId,
         session_path: params.sessionPath,
+        mode_id: params.modeId,
       },
     });
     return unwrapResult<AgentSessionInfo>(result);
@@ -628,11 +631,13 @@ export class ApiClient {
   async createChatSession(params?: {
     noTools?: boolean;
     systemPrompt?: string;
+    modeId?: string;
   }): Promise<AgentSessionInfo> {
     const result = await sdk.createSession2({
       body: {
         no_tools: params?.noTools,
         system_prompt: params?.systemPrompt,
+        mode_id: params?.modeId,
       },
     });
     return unwrapResult<AgentSessionInfo>(result);
@@ -1155,6 +1160,78 @@ export class ApiClient {
 
   async saveCustomModels(config: { providers: Record<string, CustomProvider> }): Promise<void> {
     const result = await sdk.saveCustomModels({ body: { providers: config.providers } });
+    unwrapResult(result);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Modes
+  // ---------------------------------------------------------------------------
+
+  async listModes(): Promise<AgentMode[]> {
+    const result = await sdk.listModes();
+    return unwrapResult<AgentMode[]>(result);
+  }
+
+  async createMode(params: {
+    name: string;
+    description?: string;
+    model?: string;
+    thinkingLevel?: string;
+    extensions?: string[];
+    skills?: string[];
+    extraArgs?: string[];
+    isDefault?: boolean;
+    sortOrder?: number;
+  }): Promise<AgentMode> {
+    const result = await sdk.createMode({
+      body: {
+        name: params.name,
+        description: params.description,
+        model: params.model,
+        thinking_level: params.thinkingLevel,
+        extensions: Array.isArray(params.extensions) && params.extensions.length > 0 ? params.extensions : undefined,
+        skills: Array.isArray(params.skills) && params.skills.length > 0 ? params.skills : undefined,
+        extra_args: Array.isArray(params.extraArgs) && params.extraArgs.length > 0 ? params.extraArgs : undefined,
+        is_default: params.isDefault,
+        sort_order: params.sortOrder,
+      },
+    });
+    return unwrapResult<AgentMode>(result);
+  }
+
+  async updateMode(
+    modeId: string,
+    params: {
+      name?: string;
+      description?: string;
+      model?: string;
+      thinkingLevel?: string;
+      extensions?: string[];
+      skills?: string[];
+      extraArgs?: string[];
+      isDefault?: boolean;
+      sortOrder?: number;
+    },
+  ): Promise<AgentMode> {
+    const result = await sdk.updateMode({
+      path: { mode_id: modeId },
+      body: {
+        name: params.name,
+        description: params.description,
+        model: params.model,
+        thinking_level: params.thinkingLevel,
+        extensions: Array.isArray(params.extensions) ? params.extensions : undefined,
+        skills: Array.isArray(params.skills) ? params.skills : undefined,
+        extra_args: Array.isArray(params.extraArgs) ? params.extraArgs : undefined,
+        is_default: params.isDefault,
+        sort_order: params.sortOrder,
+      },
+    });
+    return unwrapResult<AgentMode>(result);
+  }
+
+  async deleteMode(modeId: string): Promise<void> {
+    const result = await sdk.deleteMode({ path: { mode_id: modeId } });
     unwrapResult(result);
   }
 

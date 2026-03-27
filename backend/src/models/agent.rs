@@ -8,6 +8,7 @@ use crate::services::agent::AgentSessionInfo;
 pub struct CreateAgentSessionRequest {
     pub workspace_id: String,
     pub session_path: Option<String>,
+    pub mode_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

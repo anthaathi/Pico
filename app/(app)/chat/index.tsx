@@ -16,7 +16,9 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useResponsiveLayout } from '@/features/navigation/hooks/use-responsive-layout';
 import { PromptInput } from '@/features/workspace/components/prompt-input';
 import { WorkspaceHero } from '@/features/workspace/components/workspace-hero';
-import { useChatSessions, usePiClient } from '@pi-ui/client';
+import { ModePickerDialog } from '@/features/workspace/components/mode-picker-dialog';
+import { useChatSessions, usePiClient, useAgentModes } from '@pi-ui/client';
+import type { AgentMode } from '@pi-ui/client';
 import { useChatStore } from '@/features/chat/store';
 import { useWorkspaceStore } from '@/features/workspace/store';
 
@@ -35,10 +37,36 @@ export default function ChatIndexScreen() {
   const registerSessionWorkspace = useWorkspaceStore((s) => s.registerSessionWorkspace);
   const { invalidate: invalidateChatSessions } = useChatSessions();
 
+  const { modes: rawModes, loaded: modesLoaded } = useAgentModes();
+  const modes = Array.isArray(rawModes) ? rawModes : [];
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [preSessionId, setPreSessionId] = useState<string | null>(null);
+  const [showModePicker, setShowModePicker] = useState(false);
+  const [selectedModeId, setSelectedModeId] = useState<string | undefined>(undefined);
   const pendingRef = useRef<Promise<string> | null>(null);
+  const modeResolvedRef = useRef(false);
+
+  useEffect(() => {
+    if (!modesLoaded || modeResolvedRef.current) return;
+    if (modes.length > 0) {
+      setShowModePicker(true);
+    } else {
+      modeResolvedRef.current = true;
+    }
+  }, [modesLoaded, modes.length]);
+
+  const handleModeSelected = useCallback((mode: AgentMode) => {
+    setSelectedModeId(mode.id);
+    setShowModePicker(false);
+    modeResolvedRef.current = true;
+  }, []);
+
+  const handleModeSkipped = useCallback(() => {
+    setSelectedModeId(undefined);
+    setShowModePicker(false);
+    modeResolvedRef.current = true;
+  }, []);
 
   const ensureSession = useCallback(async (): Promise<string | null> => {
     if (preSessionId) return preSessionId;
@@ -47,6 +75,7 @@ export default function ChatIndexScreen() {
     const promise = client.createChatSession({
       noTools,
       systemPrompt: systemPrompt ?? undefined,
+      modeId: selectedModeId,
     }).then((info) => {
       registerSessionWorkspace(info.session_id, info.workspace_id ?? '__chat__');
       setPreSessionId(info.session_id);
@@ -62,9 +91,10 @@ export default function ChatIndexScreen() {
     } finally {
       pendingRef.current = null;
     }
-  }, [preSessionId, noTools, systemPrompt, client, registerSessionWorkspace]);
+  }, [preSessionId, noTools, systemPrompt, selectedModeId, client, registerSessionWorkspace]);
 
   useEffect(() => {
+    if (!modeResolvedRef.current) return;
     ensureSession().catch(() => {});
   }, [ensureSession]);
 
@@ -112,6 +142,12 @@ export default function ChatIndexScreen() {
 
   return (
     <Animated.View style={[styles.container, { backgroundColor: isDark ? '#121212' : colors.background, paddingBottom: isWideScreen ? 0 : Animated.add(keyboardPadding, insets.bottom) }]}>
+      <ModePickerDialog
+        visible={showModePicker}
+        modes={modes}
+        onSelect={handleModeSelected}
+        onSkip={handleModeSkipped}
+      />
       <View style={[styles.editorColumn, { backgroundColor: editorBg }]}>
         {sending ? (
           <View style={styles.sendingContainer}>

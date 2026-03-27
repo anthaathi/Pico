@@ -1,4 +1,5 @@
 pub mod agent;
+pub mod mode;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

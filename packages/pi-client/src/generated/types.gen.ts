@@ -44,6 +44,21 @@ export type AgentMessageRequest = {
     workspace_id?: string | null;
 };
 
+export type AgentMode = {
+    created_at: string;
+    description?: string | null;
+    extensions: Array<string>;
+    extra_args: Array<string>;
+    id: string;
+    is_default: boolean;
+    model?: string | null;
+    name: string;
+    skills: Array<string>;
+    sort_order: number;
+    thinking_level?: string | null;
+    updated_at: string;
+};
+
 export type AgentNewSessionRequest = {
     parentSession?: string | null;
     session_id: string;
@@ -122,12 +137,26 @@ export type AuthTokensResponse = {
     refresh_token: string;
 };
 
+export type CreateAgentModeRequest = {
+    description?: string | null;
+    extensions?: Array<string> | null;
+    extra_args?: Array<string> | null;
+    is_default?: boolean | null;
+    model?: string | null;
+    name: string;
+    skills?: Array<string> | null;
+    sort_order?: number | null;
+    thinking_level?: string | null;
+};
+
 export type CreateAgentSessionRequest = {
+    mode_id?: string | null;
     session_path?: string | null;
     workspace_id: string;
 };
 
 export type CreateChatSessionRequest = {
+    mode_id?: string | null;
     no_tools?: boolean | null;
     system_prompt?: string | null;
 };
@@ -543,6 +572,18 @@ export type TouchChatSessionRequest = {
     session_file?: string | null;
 };
 
+export type UpdateAgentModeRequest = {
+    description?: string | null;
+    extensions?: Array<string> | null;
+    extra_args?: Array<string> | null;
+    is_default?: boolean | null;
+    model?: string | null;
+    name?: string | null;
+    skills?: Array<string> | null;
+    sort_order?: number | null;
+    thinking_level?: string | null;
+};
+
 export type UpdateWorkspaceRequest = {
     color?: string | null;
     name?: string | null;
@@ -553,6 +594,10 @@ export type UpdateWorkspaceRequest = {
 
 export type VersionResponse = {
     name: string;
+    /**
+     * Whether the server has desktop/remote mode enabled (Linux only).
+     */
+    remote: boolean;
     server_id: string;
     version: string;
 };
@@ -2370,6 +2415,114 @@ export type WorktreeAddResponses = {
 };
 
 export type WorktreeAddResponse = WorktreeAddResponses[keyof WorktreeAddResponses];
+
+export type ListModesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/modes';
+};
+
+export type ListModesErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type ListModesResponses = {
+    /**
+     * List all agent modes
+     */
+    200: Array<AgentMode>;
+};
+
+export type ListModesResponse = ListModesResponses[keyof ListModesResponses];
+
+export type CreateModeData = {
+    body: CreateAgentModeRequest;
+    path?: never;
+    query?: never;
+    url: '/api/modes';
+};
+
+export type CreateModeErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type CreateModeResponses = {
+    /**
+     * Mode created
+     */
+    200: AgentMode;
+};
+
+export type CreateModeResponse = CreateModeResponses[keyof CreateModeResponses];
+
+export type DeleteModeData = {
+    body?: never;
+    path: {
+        /**
+         * Mode ID
+         */
+        mode_id: string;
+    };
+    query?: never;
+    url: '/api/modes/{mode_id}';
+};
+
+export type DeleteModeErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type DeleteModeResponses = {
+    /**
+     * Mode deleted
+     */
+    200: unknown;
+};
+
+export type UpdateModeData = {
+    body: UpdateAgentModeRequest;
+    path: {
+        /**
+         * Mode ID
+         */
+        mode_id: string;
+    };
+    query?: never;
+    url: '/api/modes/{mode_id}';
+};
+
+export type UpdateModeErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type UpdateModeResponses = {
+    /**
+     * Mode updated
+     */
+    200: AgentMode;
+};
+
+export type UpdateModeResponse = UpdateModeResponses[keyof UpdateModeResponses];
 
 export type InstallData = {
     body?: never;

@@ -662,12 +662,45 @@ pub async fn create_session(
         }
     };
 
+    let extra_args = if let Some(ref mode_id) = req.mode_id {
+        match state.db.get_agent_mode(mode_id) {
+            Ok(Some(mode)) => mode.to_cli_args(),
+            Ok(None) => {
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(ApiResponse::err("Mode not found")),
+                );
+            }
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiResponse::err(format!("DB error: {e}"))),
+                );
+            }
+        }
+    } else {
+        vec![]
+    };
+
     match state
         .agent
-        .create_session(req.workspace_id, workspace.path, req.session_path)
+        .create_session_with_provider(
+            &state.agent.default_provider_id(),
+            req.workspace_id,
+            workspace.path,
+            req.session_path,
+            None,
+            None,
+            extra_args,
+        )
         .await
     {
         Ok(info) => {
+            if let Some(ref mode_id) = req.mode_id {
+                if let Err(e) = state.db.set_session_mode(&info.session_id, mode_id) {
+                    tracing::warn!("Failed to record session mode: {e}");
+                }
+            }
             if let Err(err) = state.agent.emit_agent_state(&info.session_id).await {
                 tracing::warn!(
                     "Failed to emit initial agent_state for {}: {}",

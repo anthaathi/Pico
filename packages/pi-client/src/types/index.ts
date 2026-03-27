@@ -2,6 +2,7 @@ export * from "./stream-events";
 export * from "./chat-message";
 
 export type {
+  AgentMode,
   AgentSessionInfo,
   ActiveSessionSummary,
   AgentRuntimeStatus,
