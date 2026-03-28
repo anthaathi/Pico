@@ -107,15 +107,6 @@ export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnve
     case "agent_end": {
       isStreaming = false;
       messages = updateLastStreaming(messages, (msg) => ({ ...msg, isStreaming: false }));
-      const endData = event as unknown as Record<string, unknown>;
-      if (Array.isArray(endData["messages"])) {
-        const authoritative = convertRawMessages(endData["messages"] as Record<string, string>[]);
-        if (authoritative.length > 0) {
-          // Always accept authoritative messages from agent_end.
-          // These are the complete ground-truth message list from the backend.
-          messages = authoritative;
-        }
-      }
       break;
     }
 
