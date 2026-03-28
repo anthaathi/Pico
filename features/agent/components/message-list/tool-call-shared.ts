@@ -18,6 +18,7 @@ export const SINGLE_VERB: Record<string, string> = {
   search: "Search",
   scrape: "Scrape",
   crawl: "Crawl",
+  download: "Download",
   subagent: "Sub-agent",
 };
 
@@ -30,6 +31,7 @@ export const MULTI_GROUP_PARTS: Record<string, { before: string; after: string }
   search: { before: "", after: " web searches" },
   scrape: { before: "Scraped ", after: " pages" },
   crawl: { before: "Crawled ", after: " sites" },
+  download: { before: "", after: " downloads" },
   subagent: { before: "Ran ", after: " sub-agents" },
 };
 
@@ -102,6 +104,10 @@ export function formatSingleCall(tc: ToolCallInfo): {
     case "bash": {
       const cmd = parsed.command ?? "";
       return { verb, detail: cmd.length > 60 ? cmd.slice(0, 60) + "…" : cmd };
+    }
+    case "download": {
+      const name = parsed.fileName ?? (parsed.filePath ? basename(parsed.filePath) : "");
+      return { verb, detail: name };
     }
     default:
       return { verb, detail: "" };

@@ -23,9 +23,15 @@ pub struct AppConfig {
     pub chat: Option<ChatConfig>,
 }
 
+fn default_extensions() -> Vec<String> {
+    vec!["npm:@anthaathi/pi-companion-extensions".to_string()]
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct AgentConfig {
     pub pi_binary: Option<String>,
+    #[serde(default = "default_extensions")]
+    pub extensions: Vec<String>,
 }
 
 fn default_no_tools() -> bool {
@@ -206,5 +212,23 @@ impl AppConfig {
 
     pub fn chat_no_tools(&self) -> bool {
         self.chat.as_ref().map(|c| c.no_tools).unwrap_or(true)
+    }
+
+    pub fn default_extension_args(&self) -> Vec<String> {
+        let extensions = self
+            .agent
+            .as_ref()
+            .map(|a| &a.extensions)
+            .cloned()
+            .unwrap_or_else(default_extensions);
+
+        let mut args = Vec::new();
+        for ext in extensions {
+            if !ext.is_empty() {
+                args.push("--extension".to_string());
+                args.push(ext);
+            }
+        }
+        args
     }
 }

@@ -44,28 +44,28 @@ export default function ChatIndexScreen() {
   const [preSessionId, setPreSessionId] = useState<string | null>(null);
   const [showModePicker, setShowModePicker] = useState(false);
   const [selectedModeId, setSelectedModeId] = useState<string | undefined>(undefined);
+  const [modeResolved, setModeResolved] = useState(false);
   const pendingRef = useRef<Promise<string> | null>(null);
-  const modeResolvedRef = useRef(false);
 
   useEffect(() => {
-    if (!modesLoaded || modeResolvedRef.current) return;
+    if (!modesLoaded || modeResolved) return;
     if (modes.length > 0) {
       setShowModePicker(true);
     } else {
-      modeResolvedRef.current = true;
+      setModeResolved(true);
     }
-  }, [modesLoaded, modes.length]);
+  }, [modesLoaded, modes.length, modeResolved]);
 
   const handleModeSelected = useCallback((mode: AgentMode) => {
     setSelectedModeId(mode.id);
     setShowModePicker(false);
-    modeResolvedRef.current = true;
+    setModeResolved(true);
   }, []);
 
   const handleModeSkipped = useCallback(() => {
     setSelectedModeId(undefined);
     setShowModePicker(false);
-    modeResolvedRef.current = true;
+    setModeResolved(true);
   }, []);
 
   const ensureSession = useCallback(async (): Promise<string | null> => {
@@ -94,9 +94,9 @@ export default function ChatIndexScreen() {
   }, [preSessionId, noTools, systemPrompt, selectedModeId, client, registerSessionWorkspace]);
 
   useEffect(() => {
-    if (!modeResolvedRef.current) return;
+    if (!modeResolved) return;
     ensureSession().catch(() => {});
-  }, [ensureSession]);
+  }, [ensureSession, modeResolved]);
 
   const handleSend = useCallback(
     async (text: string) => {

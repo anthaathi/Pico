@@ -44,9 +44,9 @@ export default function WorkspaceScreen() {
   const [preSessionId, setPreSessionId] = useState<string | null>(null);
   const [showModePicker, setShowModePicker] = useState(false);
   const [selectedModeId, setSelectedModeId] = useState<string | undefined>(undefined);
+  const [modeResolved, setModeResolved] = useState(false);
   const pendingRef = useRef<Promise<{ session_id: string }> | null>(null);
   const currentWorkspaceRef = useRef<string | null>(workspaceId ?? null);
-  const modeResolvedRef = useRef(false);
 
   useEffect(() => {
     if (workspaceId) {
@@ -60,29 +60,29 @@ export default function WorkspaceScreen() {
     setPreSessionId(null);
     setSending(false);
     setSelectedModeId(undefined);
-    modeResolvedRef.current = false;
+    setModeResolved(false);
     pendingRef.current = null;
   }, [workspaceId]);
 
   useEffect(() => {
-    if (!modesLoaded || modeResolvedRef.current) return;
+    if (!modesLoaded || modeResolved) return;
     if (modes.length > 0) {
       setShowModePicker(true);
     } else {
-      modeResolvedRef.current = true;
+      setModeResolved(true);
     }
-  }, [modesLoaded, modes.length]);
+  }, [modesLoaded, modes.length, modeResolved]);
 
   const handleModeSelected = useCallback((mode: AgentMode) => {
     setSelectedModeId(mode.id);
     setShowModePicker(false);
-    modeResolvedRef.current = true;
+    setModeResolved(true);
   }, []);
 
   const handleModeSkipped = useCallback(() => {
     setSelectedModeId(undefined);
     setShowModePicker(false);
-    modeResolvedRef.current = true;
+    setModeResolved(true);
   }, []);
 
   const ensureSession = useCallback(
@@ -116,9 +116,9 @@ export default function WorkspaceScreen() {
   );
 
   useEffect(() => {
-    if (!workspaceId || preSessionId || !modeResolvedRef.current) return;
+    if (!workspaceId || preSessionId || !modeResolved) return;
     void ensureSession(workspaceId).catch(() => {});
-  }, [ensureSession, preSessionId, workspaceId, selectedModeId]);
+  }, [ensureSession, preSessionId, workspaceId, modeResolved]);
 
   const handleSend = useCallback(
     async (text: string) => {

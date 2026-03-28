@@ -662,9 +662,11 @@ pub async fn create_session(
         }
     };
 
-    let extra_args = if let Some(ref mode_id) = req.mode_id {
+    let mut extra_args = state.config.default_extension_args();
+
+    if let Some(ref mode_id) = req.mode_id {
         match state.db.get_agent_mode(mode_id) {
-            Ok(Some(mode)) => mode.to_cli_args(),
+            Ok(Some(mode)) => extra_args.extend(mode.to_cli_args()),
             Ok(None) => {
                 return (
                     StatusCode::NOT_FOUND,
@@ -678,9 +680,7 @@ pub async fn create_session(
                 );
             }
         }
-    } else {
-        vec![]
-    };
+    }
 
     match state
         .agent

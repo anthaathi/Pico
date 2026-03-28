@@ -86,7 +86,7 @@ pub async fn create_session(
         vec![]
     };
 
-    let mut extra_args = Vec::new();
+    let mut extra_args = state.config.default_extension_args();
     if no_tools {
         extra_args.push("--no-tools".to_string());
     }

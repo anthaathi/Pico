@@ -23,6 +23,8 @@ function formatToolLabel(name: string, args: string): string {
       return parsed.path ?? "edit";
     case "write":
       return parsed.path ?? "write";
+    case "download":
+      return parsed.fileName ?? parsed.filePath ?? "download";
     default:
       return name;
   }

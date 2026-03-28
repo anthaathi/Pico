@@ -16,6 +16,7 @@ import { BashToolCall } from "./bash-tool-call";
 import { ReadToolCall } from "./read-tool-call";
 import { WriteToolCall } from "./write-tool-call";
 import { EditToolCall } from "./edit-tool-call";
+import { DownloadToolCall } from "./download-tool-call";
 import { SubagentToolCall } from "./subagent-tool-call";
 import { ToolCallCard } from "./tool-call-card";
 
@@ -77,6 +78,7 @@ function SingleToolCall({ tc }: { tc: ToolCallInfo }) {
   if (tc.name === "read") return <ReadToolCall tc={tc} />;
   if (tc.name === "write") return <WriteToolCall tc={tc} />;
   if (tc.name === "edit") return <EditToolCall tc={tc} />;
+  if (tc.name === "download") return <DownloadToolCall tc={tc} />;
   if (tc.name === "subagent") return <SubagentToolCall tc={tc} />;
 
   const { verb, detail, diffAdded, diffRemoved } = formatSingleCall(tc);

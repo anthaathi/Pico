@@ -10,6 +10,8 @@ type ParsedToolArguments = {
   limit?: number;
   agent?: string;
   task?: string;
+  filePath?: string;
+  fileName?: string;
 };
 
 
@@ -121,6 +123,8 @@ export function parseToolArguments(rawArgs: string): ParsedToolArguments {
       limit: typeof parsed.limit === "number" ? parsed.limit : undefined,
       agent: typeof parsed.agent === "string" ? parsed.agent : undefined,
       task: typeof parsed.task === "string" ? parsed.task : undefined,
+      filePath: typeof parsed.filePath === "string" ? parsed.filePath : undefined,
+      fileName: typeof parsed.fileName === "string" ? parsed.fileName : undefined,
     };
   } catch {
     return {
@@ -133,6 +137,8 @@ export function parseToolArguments(rawArgs: string): ParsedToolArguments {
       limit: extractPartialJsonNumberField(rawArgs, "limit"),
       agent: extractPartialJsonStringField(rawArgs, "agent"),
       task: extractPartialJsonStringField(rawArgs, "task"),
+      filePath: extractPartialJsonStringField(rawArgs, "filePath"),
+      fileName: extractPartialJsonStringField(rawArgs, "fileName"),
     };
   }
 }
