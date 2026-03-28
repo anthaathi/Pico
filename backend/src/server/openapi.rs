@@ -102,6 +102,7 @@ use crate::services;
         routes::mode::create_mode,
         routes::mode::update_mode,
         routes::mode::delete_mode,
+        routes::mode::get_session_mode,
         routes::custom_models::get_custom_models,
         routes::custom_models::save_custom_models,
         routes::task::get_config,
@@ -198,6 +199,7 @@ use crate::services;
         models::mode::AgentMode,
         models::mode::CreateAgentModeRequest,
         models::mode::UpdateAgentModeRequest,
+        routes::mode::SessionModeResponse,
     )),
     modifiers(&SecurityAddon),
     tags(

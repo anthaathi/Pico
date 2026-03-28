@@ -1,11 +1,19 @@
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
+use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use crate::models::mode::{AgentMode, CreateAgentModeRequest, UpdateAgentModeRequest};
 use crate::models::ApiResponse;
 use crate::routes::auth::require_auth;
 use crate::server::state::AppState;
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct SessionModeResponse {
+    pub session_id: String,
+    pub mode: Option<AgentMode>,
+}
 
 #[utoipa::path(
     get,
@@ -150,4 +158,49 @@ pub async fn delete_mode(
             Json(ApiResponse::err(format!("DB error: {e}"))),
         ),
     }
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/sessions/{session_id}/mode",
+    params(("session_id" = String, Path, description = "Session ID")),
+    responses(
+        (status = 200, description = "Session mode", body = SessionModeResponse),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "modes"
+)]
+pub async fn get_session_mode(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(session_id): Path<String>,
+) -> (StatusCode, Json<ApiResponse<SessionModeResponse>>) {
+    if let Err((code, msg)) = require_auth(&state, &headers).await {
+        return (code, Json(ApiResponse::err(msg)));
+    }
+
+    let mode = match state.db.get_session_mode(&session_id) {
+        Ok(Some(mode_id)) => match state.db.get_agent_mode(&mode_id) {
+            Ok(m) => m,
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiResponse::err(format!("DB error: {e}"))),
+                );
+            }
+        },
+        Ok(None) => None,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::err(format!("DB error: {e}"))),
+            );
+        }
+    };
+
+    (
+        StatusCode::OK,
+        Json(ApiResponse::ok(SessionModeResponse { session_id, mode })),
+    )
 }

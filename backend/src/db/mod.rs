@@ -649,7 +649,6 @@ impl Database {
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub fn get_session_mode(&self, session_id: &str) -> anyhow::Result<Option<String>> {
         let conn = self.conn.lock().unwrap();
         let result = conn.query_row(

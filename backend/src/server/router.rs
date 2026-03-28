@@ -258,6 +258,7 @@ fn mode_routes() -> Router<AppState> {
         .route("/modes", post(routes::mode::create_mode))
         .route("/modes/{mode_id}", axum::routing::put(routes::mode::update_mode))
         .route("/modes/{mode_id}", delete(routes::mode::delete_mode))
+        .route("/sessions/{session_id}/mode", get(routes::mode::get_session_mode))
 }
 
 fn task_routes() -> Router<AppState> {
