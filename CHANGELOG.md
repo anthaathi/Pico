@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.7.0](https://github.com/anthaathi/Pico/compare/v1.6.0...v1.7.0) (2026-03-28)
+
+
+### Features
+
+* added agent modes, download button ([#21](https://github.com/anthaathi/Pico/issues/21)) ([129c6a7](https://github.com/anthaathi/Pico/commit/129c6a782ae163678968bb7de8436e9d3ea055ca))
+
+
+### Bug Fixes
+
+* remove agent_end authoritative message replacement ([#23](https://github.com/anthaathi/Pico/issues/23)) ([31f1b6a](https://github.com/anthaathi/Pico/commit/31f1b6ac3ae5616dc64e472ae2972b579be59e0f))
+
 ## [1.6.0](https://github.com/anthaathi/pi-companion/compare/v1.5.0...v1.6.0) (2026-03-27)
 
 
