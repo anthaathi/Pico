@@ -1236,12 +1236,8 @@ export class ApiClient {
   }
 
   async getSessionMode(sessionId: string): Promise<{ session_id: string; mode: AgentMode | null }> {
-    const response = await fetch(`${this._serverUrl}/api/sessions/${sessionId}/mode`, {
-      headers: { Authorization: `Bearer ${this._accessToken}` },
-    });
-    const body = await response.json();
-    if (!body.success) throw new Error(body.error ?? "Failed to get session mode");
-    return body.data;
+    const result = await sdk.getSessionMode({ path: { session_id: sessionId } });
+    return unwrapResult<{ session_id: string; mode: AgentMode | null }>(result);
   }
 
   // ---------------------------------------------------------------------------

@@ -469,6 +469,11 @@ export type SessionListItem = {
     version: number;
 };
 
+export type SessionModeResponse = {
+    mode?: null | AgentMode;
+    session_id: string;
+};
+
 export type SessionTreeNode = {
     children: Array<SessionTreeNode>;
     entry_type: string;
@@ -2628,6 +2633,34 @@ export type UpdateResponses = {
 };
 
 export type UpdateResponse = UpdateResponses[keyof UpdateResponses];
+
+export type GetSessionModeData = {
+    body?: never;
+    path: {
+        /**
+         * Session ID
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/api/sessions/{session_id}/mode';
+};
+
+export type GetSessionModeErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type GetSessionModeResponses = {
+    /**
+     * Session mode
+     */
+    200: SessionModeResponse;
+};
+
+export type GetSessionModeResponse = GetSessionModeResponses[keyof GetSessionModeResponses];
 
 export type StreamData = {
     body?: never;
