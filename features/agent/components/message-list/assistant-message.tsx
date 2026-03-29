@@ -483,14 +483,22 @@ function AssistantMessageComponent({
   const canCopy = message.text.trim().length > 0;
   const showActions =
     Platform.OS !== "web" || isHovered || isActionHovered || infoOpen || copied;
-  const actionVisibilityStyle = Platform.OS === "web"
-    ? ({
-        visibility: showActions ? "visible" : "hidden",
-        opacity: showActions ? 1 : 0,
-        transition: "opacity 0.15s ease",
-      } as any)
-    : null;
+  const actionReveal = useSharedValue(showActions ? 1 : 0);
+  useEffect(() => {
+    actionReveal.value = withTiming(showActions ? 1 : 0, {
+      duration: 150,
+      easing: Easing.out(Easing.ease),
+    });
+  }, [showActions, actionReveal]);
+  const actionAnimStyle = useAnimatedStyle(() => ({
+    opacity: actionReveal.value,
+  }));
+  const actionsPointerEvents = showActions ? "auto" as const : "none" as const;
   const isMobileInfoSheet = Platform.OS !== "web";
+  const copyIconScale = useSharedValue(1);
+  const copyIconAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: copyIconScale.value }],
+  }));
   const thinkingReveal = useSharedValue(0);
 
   useEffect(() => {
@@ -613,6 +621,11 @@ function AssistantMessageComponent({
     if (!canCopy) return;
     const didCopy = await copyToClipboard(message.text);
     if (!didCopy) return;
+    copyIconScale.value = withSequence(
+      withTiming(0.6, { duration: 80, easing: Easing.in(Easing.ease) }),
+      withTiming(1.15, { duration: 150, easing: Easing.out(Easing.ease) }),
+      withTiming(1, { duration: 100, easing: Easing.out(Easing.ease) }),
+    );
     setCopied(true);
     if (copyResetRef.current) {
       clearTimeout(copyResetRef.current);
@@ -862,12 +875,15 @@ function AssistantMessageComponent({
         )}
 
         {!hideActions && (
-          <Pressable
-            accessible={false}
-            onHoverIn={handleActionHoverIn}
-            onHoverOut={handleActionHoverOut}
-            style={[styles.messageMeta, actionVisibilityStyle]}
+          <Animated.View
+            style={[styles.messageMeta, actionAnimStyle]}
+            pointerEvents={actionsPointerEvents}
           >
+            <Pressable
+              accessible={false}
+              onHoverIn={handleActionHoverIn}
+              onHoverOut={handleActionHoverOut}
+            >
             <View style={styles.actionRail}>
               <Pressable
                 ref={infoButtonRef}
@@ -908,14 +924,17 @@ function AssistantMessageComponent({
                   },
                 ]}
               >
-                {copied ? (
-                  <Check size={13} color={colors.textTertiary} strokeWidth={2.1} />
-                ) : (
-                  <Copy size={13} color={colors.textTertiary} strokeWidth={1.9} />
-                )}
+                <Animated.View style={copyIconAnimStyle}>
+                  {copied ? (
+                    <Check size={13} color={colors.textTertiary} strokeWidth={2.1} />
+                  ) : (
+                    <Copy size={13} color={colors.textTertiary} strokeWidth={1.9} />
+                  )}
+                </Animated.View>
               </Pressable>
             </View>
-          </Pressable>
+            </Pressable>
+          </Animated.View>
         )}
       </View>
       {Platform.OS === "web" && infoRows.length > 0 ? (
