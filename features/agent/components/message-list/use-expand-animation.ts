@@ -32,13 +32,16 @@ export function useExpandAnimation(options?: UseExpandAnimationOptions) {
 
   const onMeasure = useCallback(
     (height: number) => {
-      measuredHeight.value = height;
-      if (pendingExpand.current && height > 0) {
+      if (height <= 0) return;
+      if (pendingExpand.current) {
+        measuredHeight.value = height;
         pendingExpand.current = false;
         startExpandAnimation();
+      } else if (progress.value >= 0.99 || height > measuredHeight.value) {
+        measuredHeight.value = height;
       }
     },
-    [measuredHeight, startExpandAnimation],
+    [measuredHeight, progress, startExpandAnimation],
   );
 
   const expand = useCallback(() => {

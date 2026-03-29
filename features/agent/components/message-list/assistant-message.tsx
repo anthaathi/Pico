@@ -814,7 +814,7 @@ function AssistantMessageComponent({
           )
         )}
 
-        {message.text.length > 0 && (
+        {(message.text.length > 0 || (message.isStreaming && !hasToolCalls)) && (
           <View style={styles.markdownWrap}>
             {markdownElements.map((el, i) => {
               const isLast = message.isStreaming && i === markdownElements.length - 1;
@@ -835,10 +835,6 @@ function AssistantMessageComponent({
               <StreamingCursor />
             )}
           </View>
-        )}
-
-        {message.isStreaming && message.text.length === 0 && !hasToolCalls && (
-          <StreamingCursor />
         )}
 
         {noticeBlock}

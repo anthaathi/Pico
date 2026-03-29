@@ -36,12 +36,13 @@ export function AnimatedEntry({ children, enabled = true }: AnimatedEntryProps) 
   const handleLayout = useCallback(
     (e: { nativeEvent: { layout: { height: number } } }) => {
       const h = e.nativeEvent.layout.height;
-      if (h > 0) {
+      if (h <= 0) return;
+      if (!hasStarted.current) {
         measuredHeight.value = h;
-        if (!hasStarted.current) {
-          hasStarted.current = true;
-          progress.value = withTiming(1, { duration: DURATION, easing: EASING });
-        }
+        hasStarted.current = true;
+        progress.value = withTiming(1, { duration: DURATION, easing: EASING });
+      } else if (h > measuredHeight.value) {
+        measuredHeight.value = h;
       }
     },
     [measuredHeight, progress],
