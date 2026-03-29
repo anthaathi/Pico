@@ -35,6 +35,7 @@ import type { ChatMessage, ToolCallInfo } from "../../types";
 import { ToolCallGroup, groupToolCalls } from "./tool-call-group";
 import { MessageIdContext } from "./visibility-context";
 import { markedDarkOptions, markedLightOptions } from "../../theme";
+import { AnimatedEntry } from "./animated-entry";
 
 const WEB_INFO_POPOVER_WIDTH = 260;
 const WEB_INFO_POPOVER_MARGIN = 12;
@@ -431,6 +432,7 @@ function AssistantMessageComponent({
     () => (effectiveToolCalls ? groupToolCalls(effectiveToolCalls) : []),
     [effectiveToolCalls],
   );
+  const seenGroupKeysRef = useRef(new Set<string>());
   const infoRows = useMemo(() => {
     const rows: { label: string; value: string }[] = [];
 
@@ -843,13 +845,18 @@ function AssistantMessageComponent({
 
         {hasToolCalls && (
           <View style={styles.toolCalls}>
-            {groupedToolCalls.map((item) => (
-              <ToolCallGroup
-                key={item.key}
-                toolName={item.toolName}
-                calls={item.calls}
-              />
-            ))}
+            {groupedToolCalls.map((item) => {
+              const isNew = !seenGroupKeysRef.current.has(item.key);
+              seenGroupKeysRef.current.add(item.key);
+              return (
+                <AnimatedEntry key={item.key} enabled={isNew && !!message.isStreaming}>
+                  <ToolCallGroup
+                    toolName={item.toolName}
+                    calls={item.calls}
+                  />
+                </AnimatedEntry>
+              );
+            })}
             {message.isStreaming && (
               <View style={styles.toolStreaming}>
                 <StreamingCursor />

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   useAnimatedStyle,
   useSharedValue,
@@ -21,29 +21,43 @@ export function useExpandAnimation(options?: UseExpandAnimationOptions) {
   const measuredHeight = useSharedValue(0);
   const progress = useSharedValue(initialExpanded ? 1 : 0);
   const chevronRotation = useSharedValue(initialExpanded ? 1 : 0);
+  const pendingExpand = useRef(false);
+
+  const startExpandAnimation = useCallback(() => {
+    progress.value = withTiming(1, {
+      duration: EXPAND_DURATION,
+      easing: EXPAND_EASING,
+    });
+  }, [progress]);
 
   const onMeasure = useCallback(
     (height: number) => {
       measuredHeight.value = height;
+      if (pendingExpand.current && height > 0) {
+        pendingExpand.current = false;
+        startExpandAnimation();
+      }
     },
-    [measuredHeight],
+    [measuredHeight, startExpandAnimation],
   );
 
   const expand = useCallback(() => {
     setShouldRender(true);
     setExpanded(true);
-    progress.value = withTiming(1, {
-      duration: EXPAND_DURATION,
-      easing: EXPAND_EASING,
-    });
     chevronRotation.value = withTiming(1, {
       duration: 200,
       easing: EXPAND_EASING,
     });
-  }, [progress, chevronRotation]);
+    if (measuredHeight.value > 0) {
+      startExpandAnimation();
+    } else {
+      pendingExpand.current = true;
+    }
+  }, [chevronRotation, measuredHeight, startExpandAnimation]);
 
   const collapse = useCallback(() => {
     setExpanded(false);
+    pendingExpand.current = false;
     progress.value = withTiming(
       0,
       { duration: EXPAND_DURATION, easing: EXPAND_EASING },
@@ -66,9 +80,13 @@ export function useExpandAnimation(options?: UseExpandAnimationOptions) {
 
   const containerStyle = useAnimatedStyle(() => {
     const h = measuredHeight.value;
+    const p = progress.value;
+    if (p >= 0.99) {
+      return { opacity: 1 };
+    }
     return {
-      height: h > 0 ? h * progress.value : undefined,
-      opacity: progress.value,
+      height: h > 0 ? h * p : 0,
+      opacity: p,
       overflow: "hidden" as const,
     };
   });

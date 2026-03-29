@@ -1,5 +1,6 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import { AnimatedEntry } from "./animated-entry";
 
 import { Colors, Fonts } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -140,10 +141,10 @@ const KNOWN_TOOLS: Record<string, React.ComponentType<{ tc: ToolCallInfo }>> = {
   subagent: SubagentToolCall,
 };
 
-function SingleToolCall({ tc }: { tc: ToolCallInfo }) {
+const SingleToolCall = memo(function SingleToolCall({ tc }: { tc: ToolCallInfo }) {
   const Component = KNOWN_TOOLS[tc.name] ?? GenericToolCall;
   return <Component tc={tc} />;
-}
+});
 
 function ToolCallGroupComponent({
   toolName,
@@ -158,6 +159,7 @@ function ToolCallGroupComponent({
   const activeCall = calls.find((call) => isToolCallActive(call));
   const groupStatusLabel = activeCall ? getToolStatusLabel(activeCall) : null;
 
+  const seenIdsRef = useRef(new Set<string>());
   const anim = useExpandAnimation();
 
   useEffect(() => {
@@ -209,9 +211,15 @@ function ToolCallGroupComponent({
         onMeasure={anim.onMeasure}
       >
         <View style={groupStyles.expandedList}>
-          {visibleCalls.map((tc) => (
-            <SingleToolCall key={tc.id} tc={tc} />
-          ))}
+          {visibleCalls.map((tc) => {
+            const isNew = !seenIdsRef.current.has(tc.id);
+            seenIdsRef.current.add(tc.id);
+            return (
+              <AnimatedEntry key={tc.id} enabled={isNew && anim.expanded}>
+                <SingleToolCall tc={tc} />
+              </AnimatedEntry>
+            );
+          })}
           {hasMore && !showAll && (
             <Pressable
               style={groupStyles.showMoreBtn}

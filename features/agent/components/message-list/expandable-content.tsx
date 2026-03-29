@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useCallback, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 import Animated from "react-native-reanimated";
 
@@ -15,33 +15,26 @@ export function ExpandableContent({
   onMeasure,
   children,
 }: ExpandableContentProps) {
+  const lastHeight = useRef(0);
+
+  const handleLayout = useCallback(
+    (e: { nativeEvent: { layout: { height: number } } }) => {
+      const h = e.nativeEvent.layout.height;
+      if (h !== lastHeight.current) {
+        lastHeight.current = h;
+        onMeasure(h);
+      }
+    },
+    [onMeasure],
+  );
+
   if (!shouldRender) return null;
 
   return (
-    <View>
-      <View
-        style={measureStyles.hidden}
-        pointerEvents="none"
-      >
-        <View
-          onLayout={(e) => onMeasure(e.nativeEvent.layout.height)}
-        >
-          {children}
-        </View>
-      </View>
-      <Animated.View style={containerStyle}>
+    <Animated.View style={containerStyle}>
+      <View onLayout={handleLayout}>
         {children}
-      </Animated.View>
-    </View>
+      </View>
+    </Animated.View>
   );
 }
-
-const measureStyles = StyleSheet.create({
-  hidden: {
-    position: "absolute",
-    opacity: 0,
-    zIndex: -1,
-    alignSelf: "stretch",
-    width: "100%",
-  },
-});
