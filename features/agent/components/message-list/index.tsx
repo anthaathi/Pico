@@ -320,8 +320,16 @@ const MessageRow = memo(
     const { message, toolCalls, showTurnDivider, turnSummary, modelLabel, animateOnMount } =
       item;
 
-    const content = (
-      <View>
+    const entering = animateOnMount
+      ? message.role === "user"
+        ? USER_ENTER
+        : message.role === "assistant"
+          ? ASSISTANT_ENTER
+          : SYSTEM_ENTER
+      : undefined;
+
+    return (
+      <Animated.View entering={entering}>
         {showTurnDivider ? (
           <TurnDivider label={turnSummary} isDark={isDark} />
         ) : null}
@@ -340,21 +348,6 @@ const MessageRow = memo(
         ) : (
           <SystemMessage message={message} />
         )}
-      </View>
-    );
-
-    if (!animateOnMount) return content;
-
-    const entering =
-      message.role === "user"
-        ? USER_ENTER
-        : message.role === "assistant"
-          ? ASSISTANT_ENTER
-          : SYSTEM_ENTER;
-
-    return (
-      <Animated.View entering={entering}>
-        {content}
       </Animated.View>
     );
   },
