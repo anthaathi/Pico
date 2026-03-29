@@ -32,7 +32,7 @@ export function ExpandableContent({
 
   return (
     <View>
-      <View style={styles.measure} pointerEvents="none">
+      <View style={measureStyles.hidden} pointerEvents="none">
         <View onLayout={handleLayout}>{children}</View>
       </View>
       <Animated.View style={containerStyle}>{children}</Animated.View>
@@ -40,8 +40,8 @@ export function ExpandableContent({
   );
 }
 
-const styles = StyleSheet.create({
-  measure: {
+const measureStyles = StyleSheet.create({
+  hidden: {
     position: "absolute",
     opacity: 0,
     zIndex: -1,

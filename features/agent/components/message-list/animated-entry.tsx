@@ -19,7 +19,7 @@ export function AnimatedEntry({ children, enabled = true }: AnimatedEntryProps) 
   const measuredHeight = useSharedValue(0);
   const progress = useSharedValue(0);
   const hasMeasured = useRef(false);
-  const [ready, setReady] = useState(false);
+  const [measured, setMeasured] = useState(false);
 
   const containerStyle = useAnimatedStyle(() => {
     const p = progress.value;
@@ -40,7 +40,7 @@ export function AnimatedEntry({ children, enabled = true }: AnimatedEntryProps) 
       if (h > 0 && !hasMeasured.current) {
         hasMeasured.current = true;
         measuredHeight.value = h;
-        setReady(true);
+        setMeasured(true);
         progress.value = withTiming(1, { duration: DURATION, easing: EASING });
       }
     },
@@ -59,18 +59,19 @@ export function AnimatedEntry({ children, enabled = true }: AnimatedEntryProps) 
 
   if (!enabled) return <>{children}</>;
 
-  if (!ready) {
-    return (
-      <View style={styles.measure} pointerEvents="none">
-        <View onLayout={handleMeasure}>{children}</View>
-      </View>
-    );
-  }
-
   return (
-    <Animated.View style={containerStyle}>
-      <View onLayout={handleGrowth}>{children}</View>
-    </Animated.View>
+    <View>
+      {!measured && (
+        <View style={styles.measure} pointerEvents="none">
+          <View onLayout={handleMeasure}>{children}</View>
+        </View>
+      )}
+      <Animated.View style={containerStyle}>
+        <View onLayout={measured ? handleGrowth : undefined}>
+          {children}
+        </View>
+      </Animated.View>
+    </View>
   );
 }
 

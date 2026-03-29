@@ -22,17 +22,17 @@ export const SINGLE_VERB: Record<string, string> = {
   subagent: "Sub-agent",
 };
 
-export const MULTI_GROUP_PARTS: Record<string, { before: string; after: string }> = {
-  read: { before: "Explored ", after: " files" },
-  edit: { before: "Edited ", after: " files" },
-  write: { before: "Wrote ", after: " files" },
-  bash: { before: "Ran ", after: " commands" },
-  python: { before: "Ran Python ", after: " times" },
-  search: { before: "", after: " web searches" },
-  scrape: { before: "Scraped ", after: " pages" },
-  crawl: { before: "Crawled ", after: " sites" },
-  download: { before: "", after: " downloads" },
-  subagent: { before: "Ran ", after: " sub-agents" },
+export const MULTI_GROUP_PARTS: Record<string, { before: string; after: string; singular?: string }> = {
+  read: { before: "Explored ", after: " files", singular: " file" },
+  edit: { before: "Edited ", after: " files", singular: " file" },
+  write: { before: "Wrote ", after: " files", singular: " file" },
+  bash: { before: "Ran ", after: " commands", singular: " command" },
+  python: { before: "Ran Python ", after: " times", singular: " time" },
+  search: { before: "", after: " web searches", singular: " web search" },
+  scrape: { before: "Scraped ", after: " pages", singular: " page" },
+  crawl: { before: "Crawled ", after: " sites", singular: " site" },
+  download: { before: "", after: " downloads", singular: " download" },
+  subagent: { before: "Ran ", after: " sub-agents", singular: " sub-agent" },
 };
 
 // ---------------------------------------------------------------------------
@@ -51,9 +51,12 @@ export function countLines(text: string): number {
 
 export function multiGroupLabelParts(
   toolName: string,
-  _count: number,
+  count: number,
 ): { before: string; after: string } {
-  return MULTI_GROUP_PARTS[toolName] ?? { before: "", after: `× ${toolName}` };
+  const parts = MULTI_GROUP_PARTS[toolName];
+  if (!parts) return { before: "", after: `× ${toolName}` };
+  const after = count === 1 && parts.singular ? parts.singular : parts.after;
+  return { before: parts.before, after };
 }
 
 export function formatSingleCall(tc: ToolCallInfo): {
