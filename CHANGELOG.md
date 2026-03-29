@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.7.1](https://github.com/anthaathi/Pico/compare/v1.7.0...v1.7.1) (2026-03-29)
+
+
+### Bug Fixes
+
+* focus prompt input on Cmd/Ctrl+V paste on web ([557216a](https://github.com/anthaathi/Pico/commit/557216a257dc585aa50d48c9ca1fe5da3459a8c3))
+* prevent layout shift when toolbar shimmer transitions to real toolbar ([70e8dd0](https://github.com/anthaathi/Pico/commit/70e8dd0d2828d0f2e9bf0738af97fb887e8336ad))
+* speech recognition stale closures, session tracking, and VNC type fixes ([0684e66](https://github.com/anthaathi/Pico/commit/0684e66deb59ac7d6ea947134b90d8d0963ca370))
+
 ## [1.7.0](https://github.com/anthaathi/Pico/compare/v1.6.0...v1.7.0) (2026-03-28)
 
 
