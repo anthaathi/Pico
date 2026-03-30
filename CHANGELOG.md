@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/anthaathi/Pico/compare/v1.9.0...v1.10.0) (2026-03-30)
+
+
+### Features
+
+* show actual server version in settings from /version endpoint ([3aaf6ef](https://github.com/anthaathi/Pico/commit/3aaf6ef4b7be02aafcd73c58efaf4336fb0fb62e))
+
 ## [1.9.0](https://github.com/anthaathi/Pico/compare/v1.8.0...v1.9.0) (2026-03-30)
 
 
