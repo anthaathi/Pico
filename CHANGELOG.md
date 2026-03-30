@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.1](https://github.com/anthaathi/Pico/compare/v1.10.0...v1.10.1) (2026-03-30)
+
+
+### Bug Fixes
+
+* inject node directory into PATH when running pi binary ([415ada9](https://github.com/anthaathi/Pico/commit/415ada983fe59536fb663e8f10042c9a26b7d6ab))
+
 ## [1.10.0](https://github.com/anthaathi/Pico/compare/v1.9.0...v1.10.0) (2026-03-30)
 
 
