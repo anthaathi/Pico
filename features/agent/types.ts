@@ -31,6 +31,16 @@ export interface SubagentProgress {
   recentOutput?: string[];
 }
 
+export interface SubagentMeta {
+  model?: string;
+  provider?: string;
+  toolCount?: number;
+  tokens?: number;
+  durationMs?: number;
+  cost?: number;
+  turns?: number;
+}
+
 export interface ToolCallInfo {
   id: string;
   name: string;
@@ -40,7 +50,9 @@ export interface ToolCallInfo {
   isError?: boolean;
   partialResult?: string;
   progress?: SubagentProgress;
+  subagentMeta?: SubagentMeta;
   previousId?: string;
+  contentIndex?: number;
 }
 
 export interface MessageUsageInfo {

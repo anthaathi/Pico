@@ -1,4 +1,4 @@
-import type { ChatMessage, ToolCallInfo, MessageUsageInfo, AgentMode, PendingExtensionUiRequest } from "../types/chat-message";
+import type { ChatMessage, ToolCallInfo, MessageUsageInfo, AgentMode, PendingExtensionUiRequest, SubagentMeta } from "../types/chat-message";
 import type { AgentStreamEvent, StreamEventEnvelope } from "../types/stream-events";
 
 export interface SessionState {
@@ -68,6 +68,75 @@ function updateLastStreaming(messages: ChatMessage[], updater: (msg: ChatMessage
   const next = [...messages];
   next[idx] = updater(messages[idx]!);
   return next;
+}
+
+function extractSubagentMeta(details: unknown): SubagentMeta | undefined {
+  if (!details || typeof details !== "object") return undefined;
+  const d = details as Record<string, unknown>;
+  const results = Array.isArray(d["results"]) ? d["results"] as Record<string, unknown>[] : [];
+  const first = results[0];
+  if (!first) return undefined;
+  const usage = first["usage"] as Record<string, unknown> | undefined;
+  const summary = first["progressSummary"] as Record<string, unknown> | undefined;
+  const meta: SubagentMeta = {};
+  if (typeof first["model"] === "string") meta.model = first["model"] as string;
+  if (usage) {
+    if (typeof usage["cost"] === "number") meta.cost = usage["cost"] as number;
+    if (typeof usage["turns"] === "number") meta.turns = usage["turns"] as number;
+  }
+  if (summary) {
+    if (typeof summary["toolCount"] === "number") meta.toolCount = summary["toolCount"] as number;
+    if (typeof summary["tokens"] === "number") meta.tokens = summary["tokens"] as number;
+    if (typeof summary["durationMs"] === "number") meta.durationMs = summary["durationMs"] as number;
+  }
+  if (!meta.model && !meta.cost && !meta.toolCount) return undefined;
+  return meta;
+}
+
+function stringifyToolArguments(argumentsValue: unknown): string {
+  if (typeof argumentsValue === "string") return argumentsValue;
+  return JSON.stringify(argumentsValue ?? {});
+}
+
+function findToolCallIndex(toolCalls: ToolCallInfo[], contentIndex?: number): number {
+  if (typeof contentIndex === "number") {
+    const exact = toolCalls.findIndex((tc) => tc.contentIndex === contentIndex);
+    if (exact !== -1) return exact;
+  }
+  for (let i = toolCalls.length - 1; i >= 0; i--) {
+    if (toolCalls[i]?.status === "streaming") return i;
+  }
+  return toolCalls.length - 1;
+}
+
+function buildToolCallsFromContent(
+  content: Record<string, unknown>[],
+  previousToolCalls: ToolCallInfo[] | undefined,
+  defaultStatus: ToolCallInfo["status"],
+): ToolCallInfo[] {
+  const nextToolCalls: ToolCallInfo[] = [];
+
+  for (const [contentIndex, block] of content.entries()) {
+    if (block["type"] !== "toolCall") continue;
+
+    const id = typeof block["id"] === "string" ? block["id"] : `tc-${contentIndex}`;
+    const previous = previousToolCalls?.find(
+      (tc) => tc.id === id || tc.previousId === id || tc.contentIndex === contentIndex,
+    );
+    const previousId = previous?.previousId ?? (previous && previous.id !== id ? previous.id : undefined);
+
+    nextToolCalls.push({
+      ...previous,
+      id,
+      name: typeof block["name"] === "string" ? block["name"] : previous?.name ?? "",
+      arguments: stringifyToolArguments(block["arguments"]),
+      status: previous?.status ?? defaultStatus,
+      contentIndex,
+      ...(previousId ? { previousId } : {}),
+    });
+  }
+
+  return nextToolCalls;
 }
 
 export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnvelope): SessionState {
@@ -144,7 +213,9 @@ export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnve
       if (event.type !== "message_update") break;
       let idx = findLastStreamingIndex(messages);
       if (idx === -1) {
-        idx = messages.findLastIndex((m) => m.role === "assistant");
+        for (let j = messages.length - 1; j >= 0; j--) {
+          if (messages[j]!.role === "assistant") { idx = j; break; }
+        }
       }
       if (idx === -1) {
         messages = [...messages, {
@@ -174,14 +245,11 @@ export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnve
           .map((c: any) => c.thinking ?? "")
           .join("");
         if (thinking) updated.thinking = thinking;
-        const toolCalls: ToolCallInfo[] = content
-          .filter((c: any) => c.type === "toolCall")
-          .map((c: any) => ({
-            id: c.id,
-            name: c.name,
-            arguments: typeof c.arguments === "string" ? c.arguments : JSON.stringify(c.arguments),
-            status: "streaming" as const,
-          }));
+        const toolCalls = buildToolCallsFromContent(
+          content as unknown as Record<string, unknown>[],
+          updated.toolCalls,
+          "streaming",
+        );
         if (toolCalls.length > 0) updated.toolCalls = toolCalls;
         updated.model = msg.model ?? updated.model;
         updated.provider = msg.provider ?? updated.provider;
@@ -204,26 +272,30 @@ export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnve
               name: delta.partial?.name ?? "",
               arguments: "",
               status: "streaming",
+              contentIndex: delta.contentIndex,
             });
             updated.toolCalls = toolCalls;
             break;
           }
           case "toolcall_delta": {
             const toolCalls = [...(updated.toolCalls ?? [])];
-            const last = toolCalls[toolCalls.length - 1];
-            if (last) {
-              const nextArgs = last.arguments + delta.delta;
-              let inferredName = last.name;
+            const toolCallIndex = findToolCallIndex(toolCalls, delta.contentIndex);
+            const currentToolCall = toolCalls[toolCallIndex];
+            if (currentToolCall) {
+              const nextArgs = currentToolCall.arguments + delta.delta;
+              let inferredName = currentToolCall.name;
               if (!inferredName && nextArgs.length > 10) {
                 if (nextArgs.includes('"oldText"')) inferredName = "edit";
                 else if (nextArgs.includes('"content"')) inferredName = "write";
                 else if (nextArgs.includes('"command"')) inferredName = "bash";
                 else if (nextArgs.includes('"query"')) inferredName = "search";
+                else if (nextArgs.includes('"agent"')) inferredName = "subagent";
               }
-              toolCalls[toolCalls.length - 1] = {
-                ...last,
+              toolCalls[toolCallIndex] = {
+                ...currentToolCall,
                 arguments: nextArgs,
-                ...(inferredName && inferredName !== last.name ? { name: inferredName } : {}),
+                contentIndex: delta.contentIndex ?? currentToolCall.contentIndex,
+                ...(inferredName && inferredName !== currentToolCall.name ? { name: inferredName } : {}),
               };
               updated.toolCalls = toolCalls;
             }
@@ -231,17 +303,17 @@ export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnve
           }
           case "toolcall_end": {
             const toolCalls = [...(updated.toolCalls ?? [])];
-            const last = toolCalls[toolCalls.length - 1];
-            if (last && delta.toolCall) {
-              const prevId = last.id !== delta.toolCall.id ? last.id : undefined;
-              toolCalls[toolCalls.length - 1] = {
-                ...last,
+            const toolCallIndex = findToolCallIndex(toolCalls, delta.contentIndex);
+            const currentToolCall = toolCalls[toolCallIndex];
+            if (currentToolCall && delta.toolCall) {
+              const prevId = currentToolCall.id !== delta.toolCall.id ? currentToolCall.id : currentToolCall.previousId;
+              toolCalls[toolCallIndex] = {
+                ...currentToolCall,
                 id: delta.toolCall.id,
                 name: delta.toolCall.name,
-                arguments: typeof delta.toolCall.arguments === "string"
-                  ? delta.toolCall.arguments
-                  : JSON.stringify(delta.toolCall.arguments),
+                arguments: stringifyToolArguments(delta.toolCall.arguments),
                 status: "pending",
+                contentIndex: delta.contentIndex ?? currentToolCall.contentIndex,
                 ...(prevId ? { previousId: prevId } : {}),
               };
               updated.toolCalls = toolCalls;
@@ -284,9 +356,11 @@ export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnve
         if (endMsg && Array.isArray(endMsg["content"])) {
           const content = endMsg["content"] as Record<string, unknown>[];
           const text = content.filter(c => c["type"] === "text").map(c => (c["text"] as string) ?? "").join("");
-          if (text && !msg.text) updated.text = text;
+          if (text) updated.text = text;
           const thinking = content.filter(c => c["type"] === "thinking").map(c => (c["thinking"] as string) ?? "").join("");
-          if (thinking && !msg.thinking) updated.thinking = thinking;
+          if (thinking) updated.thinking = thinking;
+          const toolCalls = buildToolCallsFromContent(content, msg.toolCalls, "pending");
+          if (toolCalls.length > 0) updated.toolCalls = toolCalls;
         }
         return updated;
       });
@@ -321,11 +395,14 @@ export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnve
       const resultText = event.result
         ? extractTextFromContent(event.result.content as unknown[])
         : undefined;
+      const resultDetails = (event.result as any)?.details;
+      const subagentMeta = resultDetails ? extractSubagentMeta(resultDetails) : undefined;
       messages = updateToolCall(messages, event.toolCallId, (tc) => ({
         ...tc,
         status: event.isError ? "error" : "complete",
         result: resultText,
         isError: event.isError,
+        ...(subagentMeta ? { subagentMeta } : {}),
       }));
       break;
     }
@@ -402,7 +479,7 @@ function updateToolCall(
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i]!;
     if (!msg.toolCalls) continue;
-    const idx = msg.toolCalls.findIndex((t) => t.id === toolCallId);
+    const idx = msg.toolCalls.findIndex((t) => t.id === toolCallId || t.previousId === toolCallId);
     if (idx === -1) continue;
     const nextToolCalls = [...msg.toolCalls];
     nextToolCalls[idx] = updater(msg.toolCalls[idx]!);
@@ -482,14 +559,7 @@ function convertSingleMessage(msg: Record<string, unknown>, index: number): Chat
     const content = Array.isArray(msg["content"]) ? msg["content"] as Record<string, unknown>[] : [];
     const text = content.filter(c => c["type"] === "text").map(c => c["text"] as string ?? "").join("");
     const thinking = content.filter(c => c["type"] === "thinking").map(c => c["thinking"] as string ?? "").join("");
-    const toolCalls: ToolCallInfo[] = content
-      .filter(c => c["type"] === "toolCall")
-      .map(c => ({
-        id: c["id"] as string,
-        name: c["name"] as string,
-        arguments: typeof c["arguments"] === "string" ? c["arguments"] : JSON.stringify(c["arguments"]),
-        status: "complete" as const,
-      }));
+    const toolCalls = buildToolCallsFromContent(content, undefined, "complete");
 
     return {
       id: stableId(msg, "assistant", index),
@@ -539,14 +609,19 @@ export function convertRawMessages(rawMessages: Record<string, string>[]): ChatM
     }
 
     if (raw["role"] === "toolResult") {
-      const lastAssistant = [...result].reverse().find(m => m.role === "assistant");
-      if (lastAssistant?.toolCalls) {
-        const tc = lastAssistant.toolCalls.find(t => t.id === raw["toolCallId"]);
-        if (tc) {
-          tc.result = extractTextFromContent(raw["content"] as unknown[] | undefined);
-          tc.isError = raw["isError"] as boolean;
-          tc.status = raw["isError"] ? "error" : "complete";
-        }
+      for (let i = result.length - 1; i >= 0; i--) {
+        const assistant = result[i];
+        if (assistant?.role !== "assistant" || !assistant.toolCalls) continue;
+        const tc = assistant.toolCalls.find(
+          (toolCall) => toolCall.id === raw["toolCallId"] || toolCall.previousId === raw["toolCallId"],
+        );
+        if (!tc) continue;
+        tc.result = extractTextFromContent(raw["content"] as unknown[] | undefined);
+        tc.isError = raw["isError"] as boolean;
+        tc.status = raw["isError"] ? "error" : "complete";
+        const meta = extractSubagentMeta(raw["details"]);
+        if (meta) tc.subagentMeta = meta;
+        break;
       }
     }
   }
