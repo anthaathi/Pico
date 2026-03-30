@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.11.0](https://github.com/anthaathi/Pico/compare/v1.10.1...v1.11.0) (2026-03-30)
+
+
+### Features
+
+* improve agent message tool rendering ([be0caf7](https://github.com/anthaathi/Pico/commit/be0caf75dbe23d3f3c62eb3e858d6cff22221667))
+
+
+### Bug Fixes
+
+* install.sh skips releases without artifacts, falls back to previous ([1df6e5f](https://github.com/anthaathi/Pico/commit/1df6e5f607af477cf3646667779e57592b40298e))
+* redirect dim output to stderr in fetch_latest_tag ([b8b8f21](https://github.com/anthaathi/Pico/commit/b8b8f21a41ae6efb27efdabbd52af9d611c27298))
+* silently skip releases without artifacts ([16d9eb1](https://github.com/anthaathi/Pico/commit/16d9eb155c5788af73ae57a0c56178df64d7c0fa))
+* smooth tool call animations ([c9e69cc](https://github.com/anthaathi/Pico/commit/c9e69cc0e85428845e6ec67670472d45271ab20b))
+
 ## [1.10.1](https://github.com/anthaathi/Pico/compare/v1.10.0...v1.10.1) (2026-03-30)
 
 
