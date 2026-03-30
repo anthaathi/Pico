@@ -10,18 +10,70 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from "react-native";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import { ArrowDown } from "lucide-react-native";
 import { useAgentSession } from "@pi-ui/client";
 import { Colors, Fonts } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import type { ChatMessage } from "../../types";
+import type { ChatMessage, ToolCallInfo } from "../../types";
 import { UserMessage } from "./user-message";
 import { AssistantMessage } from "./assistant-message";
 import { SystemMessage } from "./system-message";
 
 interface MessageListProps {
   sessionId: string;
+}
+
+interface VisibleMessageItem {
+  key: string;
+  message: ChatMessage;
+  toolCalls?: ToolCallInfo[];
+  turnDurationMs?: number;
+}
+
+function mergeConsecutiveToolCalls(
+  messages: ChatMessage[],
+  turnDurations: Map<string, number>,
+): VisibleMessageItem[] {
+  const visible: VisibleMessageItem[] = [];
+  let anchor: VisibleMessageItem | null = null;
+
+  for (let index = 0; index < messages.length; index++) {
+    const msg = messages[index]!;
+    const hasText =
+      msg.text.length > 0 ||
+      (!!msg.errorMessage && msg.errorMessage.length > 0) ||
+      (!!msg.thinking && msg.thinking.length > 0);
+    const toolCalls = msg.toolCalls?.length ? msg.toolCalls : undefined;
+    const turnDurationMs = turnDurations.get(msg.id);
+
+    if (msg.role === "user" || msg.role === "system") {
+      anchor = null;
+      visible.push({ key: msg.id, message: msg, turnDurationMs });
+      continue;
+    }
+
+    if (hasText || !anchor || msg.isStreaming) {
+      const item: VisibleMessageItem = {
+        key: msg.id,
+        message: msg,
+        toolCalls,
+        turnDurationMs,
+      };
+      anchor = msg.isStreaming ? null : item;
+      visible.push(item);
+      continue;
+    }
+
+    if (toolCalls?.length && anchor) {
+      anchor.toolCalls = anchor.toolCalls?.length
+        ? [...anchor.toolCalls, ...toolCalls]
+        : [...toolCalls];
+      anchor.turnDurationMs = anchor.turnDurationMs ?? turnDurationMs;
+    }
+  }
+
+  return visible;
 }
 
 const SCROLL_THRESHOLD = 200;
@@ -43,7 +95,6 @@ export const MessageList = memo(function MessageList({
   const messages = session.messages as ChatMessage[];
   const isStreaming = session.isStreaming;
 
-  const reversed = useMemo(() => [...messages].reverse(), [messages]);
   const prevMessageCountRef = useRef(messages.length);
 
   const turnDurations = useMemo(() => {
@@ -60,6 +111,12 @@ export const MessageList = memo(function MessageList({
     }
     return map;
   }, [messages]);
+
+  const visibleItems = useMemo(
+    () => mergeConsecutiveToolCalls(messages, turnDurations),
+    [messages, turnDurations],
+  );
+  const reversed = useMemo(() => [...visibleItems].reverse(), [visibleItems]);
 
   useEffect(() => {
     if (!autoFollow) return;
@@ -102,17 +159,18 @@ export const MessageList = memo(function MessageList({
   }, [session]);
 
   const renderItem = useCallback(
-    ({ item }: ListRenderItemInfo<ChatMessage>) => (
+    ({ item }: ListRenderItemInfo<VisibleMessageItem>) => (
       <MessageItem
-        message={item}
+        message={item.message}
+        toolCalls={item.toolCalls}
         isDark={isDark}
-        turnDurationMs={turnDurations.get(item.id)}
+        turnDurationMs={item.turnDurationMs}
       />
     ),
-    [isDark, turnDurations],
+    [isDark],
   );
 
-  const keyExtractor = useCallback((item: ChatMessage) => item.id, []);
+  const keyExtractor = useCallback((item: VisibleMessageItem) => item.key, []);
 
   const listFooter = (
     <View style={styles.historyLoaderWrap}>
@@ -138,7 +196,7 @@ export const MessageList = memo(function MessageList({
     <View style={styles.root}>
       <FlatList
         ref={listRef}
-        data={reversed}
+        data={reversed as VisibleMessageItem[]}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
         inverted
@@ -212,10 +270,12 @@ const TurnDivider = memo(function TurnDivider({
 
 const MessageItem = memo(function MessageItem({
   message,
+  toolCalls,
   isDark,
   turnDurationMs,
 }: {
   message: ChatMessage;
+  toolCalls?: ToolCallInfo[];
   isDark: boolean;
   turnDurationMs?: number;
 }) {
@@ -224,7 +284,7 @@ const MessageItem = memo(function MessageItem({
       case "user":
         return <UserMessage message={message} isDark={isDark} />;
       case "assistant":
-        return <AssistantMessage message={message} isDark={isDark} />;
+        return <AssistantMessage message={message} toolCallsOverride={toolCalls} isDark={isDark} />;
       case "system":
         return <SystemMessage message={message} isDark={isDark} />;
       default:
@@ -233,12 +293,17 @@ const MessageItem = memo(function MessageItem({
   })();
 
   return (
-    <View style={styles.itemWrap}>
+    <Animated.View
+      layout={LinearTransition.duration(180)}
+      entering={FadeIn.duration(160)}
+      exiting={FadeOut.duration(140)}
+      style={styles.itemWrap}
+    >
       {content}
       {typeof turnDurationMs === "number" && turnDurationMs > 0 && (
         <TurnDivider durationMs={turnDurationMs} isDark={isDark} />
       )}
-    </View>
+    </Animated.View>
   );
 });
 

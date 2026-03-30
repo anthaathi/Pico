@@ -21,7 +21,8 @@ export function AnimatedCollapse({
 }: AnimatedCollapseProps) {
   const [mounted, setMounted] = useState(expanded);
   const [contentHeight, setContentHeight] = useState(0);
-  const height = useSharedValue(expanded ? 0 : 0);
+  const [initialRender, setInitialRender] = useState(expanded);
+  const height = useSharedValue(0);
   const opacity = useSharedValue(expanded ? 1 : 0);
 
   const targetHeight = useMemo(() => {
@@ -39,6 +40,13 @@ export function AnimatedCollapse({
   }, [expanded]);
 
   useEffect(() => {
+    if (initialRender && targetHeight > 0) {
+      height.value = targetHeight;
+      opacity.value = 1;
+      setInitialRender(false);
+      return;
+    }
+    if (initialRender) return;
     if (!mounted) return;
 
     if (expanded) {
@@ -73,7 +81,7 @@ export function AnimatedCollapse({
   if (!mounted) return null;
 
   return (
-    <Animated.View style={[styles.container, style]}>
+    <Animated.View style={[styles.container, initialRender ? undefined : style]}>
       <View onLayout={handleLayout} style={styles.content}>
         {children}
       </View>

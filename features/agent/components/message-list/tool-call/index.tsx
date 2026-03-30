@@ -16,8 +16,8 @@ import { GenericToolCall } from "./generic-tool-call";
 const NEVER_GROUP = new Set(["bash", "write", "edit", "subagent"]);
 const MAX_VISIBLE = 5;
 
-const GROUP_LABELS: Record<string, { before: string; after: string }> = {
-  read: { before: "Explored ", after: " files" },
+const GROUP_LABELS: Record<string, { before: string; after: string; activeBefore?: string }> = {
+  read: { before: "Explored ", activeBefore: "Exploring ", after: " files" },
   search: { before: "", after: " web searches" },
   scrape: { before: "Scraped ", after: " pages" },
   crawl: { before: "Crawled ", after: " sites" },
@@ -73,7 +73,7 @@ export const ToolCallGroup = memo(function ToolCallGroup({
   return (
     <View style={styles.container}>
       {groups.map((g) =>
-        g.calls.length === 1 ? (
+        g.calls.length === 1 && g.toolName !== "read" ? (
           <SingleToolCall key={g.key} tc={g.calls[0]} isDark={isDark} />
         ) : (
           <GroupedToolCalls
@@ -174,13 +174,13 @@ const GroupedToolCalls = memo(function GroupedToolCalls({
   const [showAll, setShowAll] = useState(false);
 
   const activeCall = calls.find(isToolActive);
-  useEffect(() => {
-    if (activeCall) setExpanded(true);
-  }, [activeCall]);
-
   const toggle = useCallback(() => setExpanded((p) => !p), []);
 
-  const parts = GROUP_LABELS[toolName] ?? { before: "", after: ` ${toolName} calls` };
+  const baseParts = GROUP_LABELS[toolName] ?? { before: "", after: ` ${toolName} calls` };
+  const parts = {
+    before: activeCall ? (baseParts.activeBefore ?? baseParts.before) : baseParts.before,
+    after: toolName === "read" ? " files" : baseParts.after,
+  };
   const hasMore = calls.length > MAX_VISIBLE;
   const visible = expanded ? (showAll ? calls : calls.slice(0, MAX_VISIBLE)) : [];
   const hiddenCount = calls.length - MAX_VISIBLE;
@@ -188,7 +188,6 @@ const GroupedToolCalls = memo(function GroupedToolCalls({
   return (
     <View>
       <Pressable onPress={toggle} style={styles.groupHeader}>
-        <ToolStatusDot status={activeCall?.status ?? calls[calls.length - 1].status} />
         <View style={styles.labelRow}>
           {parts.before ? (
             <Text style={[styles.groupLabel, { color: colors.text }]}>

@@ -8,6 +8,8 @@ interface CodePreviewProps {
   maxHeight?: number;
   startLine?: number;
   language?: string;
+  diffLanguage?: string;
+  showLineNumbers?: boolean;
 }
 
 type TokenKind =
@@ -160,12 +162,25 @@ function tokenizeGeneric(line: string): Segment[] {
   return [{ text: line || " ", kind: "plain" }];
 }
 
-function tokenizeDiff(line: string): Segment[] {
+function tintSegments(segments: Segment[], kind: TokenKind): Segment[] {
+  return segments.map((segment) =>
+    segment.kind === "plain" || segment.kind === "punctuation" ? { ...segment, kind } : segment,
+  );
+}
+
+function tokenizeDiff(line: string, diffLanguage?: string): Segment[] {
   if (line.startsWith("@@") || line.startsWith("diff ") || line.startsWith("index ")) {
     return [{ text: line || " ", kind: "diffMeta" }];
   }
-  if (line.startsWith("+")) return [{ text: line || " ", kind: "diffAdd" }];
-  if (line.startsWith("-")) return [{ text: line || " ", kind: "diffRemove" }];
+  if (line.startsWith("+")) {
+    return [{ text: "+", kind: "diffAdd" }, ...tintSegments(tokenizeLine(line.slice(1), diffLanguage), "diffAdd")];
+  }
+  if (line.startsWith("-")) {
+    return [{ text: "-", kind: "diffRemove" }, ...tintSegments(tokenizeLine(line.slice(1), diffLanguage), "diffRemove")];
+  }
+  if (line.startsWith(" ")) {
+    return [{ text: " ", kind: "plain" }, ...tokenizeLine(line.slice(1), diffLanguage)];
+  }
   return tokenizeGeneric(line);
 }
 
@@ -252,6 +267,21 @@ function tokenizeBash(line: string): Segment[] {
   );
 }
 
+function tokenizeYaml(line: string): Segment[] {
+  return tokenizeWithPattern(
+    line,
+    /(#.*$|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\b\d+(?:\.\d+)?\b|\btrue\b|\bfalse\b|\bnull\b|\b[A-Za-z0-9_.-]+(?=\s*:)|[{}\[\],:-])/g,
+    (value) => {
+      if (value.startsWith("#")) return "comment";
+      if (value.startsWith('"') || value.startsWith("'")) return "string";
+      if (/^\d/.test(value)) return "number";
+      if (/^(true|false|null)$/.test(value)) return "keyword";
+      if (/^[A-Za-z0-9_.-]+$/.test(value)) return "property";
+      return "punctuation";
+    },
+  );
+}
+
 function tokenizeMarkup(line: string): Segment[] {
   return tokenizeWithPattern(
     line,
@@ -268,7 +298,7 @@ function tokenizeMarkup(line: string): Segment[] {
   );
 }
 
-function tokenizeLine(line: string, language?: string): Segment[] {
+function tokenizeLine(line: string, language?: string, diffLanguage?: string): Segment[] {
   const lang = normalizeLanguage(language);
 
   if (["ts", "tsx", "js", "jsx", "typescript", "javascript"].includes(lang)) {
@@ -277,8 +307,9 @@ function tokenizeLine(line: string, language?: string): Segment[] {
   if (lang === "json") return tokenizeJson(line);
   if (["py", "python"].includes(lang)) return tokenizePython(line);
   if (["bash", "sh", "shell", "zsh"].includes(lang)) return tokenizeBash(line);
+  if (["yaml", "yml"].includes(lang)) return tokenizeYaml(line);
   if (["html", "htm", "xml", "xhtml", "svg"].includes(lang)) return tokenizeMarkup(line);
-  if (["diff", "patch"].includes(lang)) return tokenizeDiff(line);
+  if (["diff", "patch"].includes(lang)) return tokenizeDiff(line, diffLanguage);
   return tokenizeGeneric(line);
 }
 
@@ -288,13 +319,15 @@ export const CodePreview = memo(function CodePreview({
   maxHeight,
   startLine = 1,
   language,
+  diffLanguage,
+  showLineNumbers = true,
 }: CodePreviewProps) {
   const colors = isDark ? Colors.dark : Colors.light;
   const tokenColors = useMemo(() => createTokenColors(isDark), [isDark]);
   const lines = useMemo(() => code.split("\n"), [code]);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}> 
+    <View style={[styles.container, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}>
       <ScrollView
         style={maxHeight ? { maxHeight } : undefined}
         nestedScrollEnabled
@@ -303,15 +336,17 @@ export const CodePreview = memo(function CodePreview({
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View>
             {lines.map((line, i) => {
-              const segments = tokenizeLine(line, language);
+              const segments = tokenizeLine(line, language, diffLanguage);
               return (
                 <View key={i} style={styles.row}>
-                  <View style={[styles.lineNoCol, { borderRightColor: colors.border }]}> 
-                    <Text style={[styles.lineNo, { color: colors.textTertiary }]}>
-                      {startLine + i}
-                    </Text>
-                  </View>
-                  <Text style={[styles.lineText, { color: tokenColors.plain }]}>
+                  {showLineNumbers ? (
+                    <View style={[styles.lineNoCol, { borderRightColor: colors.border }]}> 
+                      <Text style={[styles.lineNo, { color: colors.textTertiary }]}> 
+                        {startLine + i}
+                      </Text>
+                    </View>
+                  ) : null}
+                  <Text style={[styles.lineText, !showLineNumbers && styles.lineTextNoGutter, { color: tokenColors.plain }]}>
                     {segments.length ? segments.map((segment, idx) => (
                       <Text key={`${i}-${idx}`} style={{ color: tokenColors[segment.kind] }}>
                         {segment.text || (idx === 0 ? " " : "")}
@@ -356,5 +391,8 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.mono,
     paddingHorizontal: 8,
     paddingVertical: 1,
+  },
+  lineTextNoGutter: {
+    paddingLeft: 10,
   },
 });

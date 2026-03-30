@@ -47,27 +47,29 @@ export const BashToolCall = memo(function BashToolCall({
     <View>
       <Pressable onPress={toggle} style={styles.header}>
         <ToolStatusDot status={tc.status} />
-        <Text style={[styles.ranLabel, { color: colors.textSecondary }]} numberOfLines={1}>Ran <Text style={styles.command}>{command || "bash"}</Text>{cdPath ? <Text> in <Text style={styles.command}>{cdPath}</Text></Text> : null}</Text>
+        <Text style={[styles.ranLabel, { color: colors.textSecondary }]} numberOfLines={1}>Ran <Text style={[styles.command, { color: colors.text }]}>{command || "bash"}</Text>{cdPath ? <Text> in <Text style={[styles.command, { color: colors.text }]}>{cdPath}</Text></Text> : null}</Text>
       </Pressable>
       <AnimatedCollapse expanded={expanded} maxHeight={280}>
-        <View style={[styles.terminal, { backgroundColor: isDark ? "#0D0D0D" : "#1A1A1A" }]}>
-          <View style={styles.promptLine}>
-            <Text style={styles.promptChar}>{'>'}</Text>
-            <Text style={styles.cmdText} selectable>{command}</Text>
-          </View>
-          {hasOutput && (
-            <ScrollView
-              ref={scrollRef}
-              style={{ maxHeight: OUTPUT_MAX_HEIGHT }}
-              nestedScrollEnabled
-              showsVerticalScrollIndicator
-            >
-              <Text style={styles.outputText} selectable>{displayOutput}</Text>
-              {truncated && (
-                <Text style={styles.truncatedText}>… output truncated</Text>
-              )}
-            </ScrollView>
-          )}
+        <View style={[styles.terminal, { backgroundColor: isDark ? "#0D0D0D" : "#F5F5F5" }]}>
+          <ScrollView
+            ref={scrollRef}
+            style={{ maxHeight: OUTPUT_MAX_HEIGHT }}
+            nestedScrollEnabled
+            showsVerticalScrollIndicator
+          >
+            <View style={styles.promptLine}>
+              <Text style={[styles.promptChar, { color: isDark ? "#999" : "#888" }]}>{'>'}</Text>
+              <Text style={[styles.cmdText, { color: isDark ? "#E0E0E0" : "#1A1A1A" }]} selectable>{command}</Text>
+            </View>
+            {hasOutput && (
+              <>
+                <Text style={[styles.outputText, { color: isDark ? "#CCC" : "#333" }]} selectable>{displayOutput}</Text>
+                {truncated && (
+                  <Text style={[styles.truncatedText, { color: isDark ? "#666" : "#999" }]}>… output truncated</Text>
+                )}
+              </>
+            )}
+          </ScrollView>
         </View>
       </AnimatedCollapse>
     </View>
@@ -105,25 +107,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: Fonts.mono,
     fontWeight: "700",
-    color: "#999",
   },
   cmdText: {
     fontSize: 12,
     fontFamily: Fonts.mono,
     flex: 1,
-    color: "#E0E0E0",
   },
   outputText: {
     fontSize: 11,
     lineHeight: 16,
     fontFamily: Fonts.mono,
-    color: "#CCC",
   },
   truncatedText: {
     fontSize: 10,
     fontFamily: Fonts.mono,
     fontStyle: "italic",
     marginTop: 4,
-    color: "#666",
   },
 });

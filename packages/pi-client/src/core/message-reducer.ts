@@ -397,12 +397,14 @@ export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnve
         : undefined;
       const resultDetails = (event.result as any)?.details;
       const subagentMeta = resultDetails ? extractSubagentMeta(resultDetails) : undefined;
+      const diff = resultDetails && typeof resultDetails.diff === "string" ? resultDetails.diff : undefined;
       messages = updateToolCall(messages, event.toolCallId, (tc) => ({
         ...tc,
         status: event.isError ? "error" : "complete",
         result: resultText,
         isError: event.isError,
         ...(subagentMeta ? { subagentMeta } : {}),
+        ...(diff ? { diff } : {}),
       }));
       break;
     }
@@ -619,8 +621,10 @@ export function convertRawMessages(rawMessages: Record<string, string>[]): ChatM
         tc.result = extractTextFromContent(raw["content"] as unknown[] | undefined);
         tc.isError = raw["isError"] as boolean;
         tc.status = raw["isError"] ? "error" : "complete";
-        const meta = extractSubagentMeta(raw["details"]);
+        const details = raw["details"] as Record<string, unknown> | undefined;
+        const meta = extractSubagentMeta(details);
         if (meta) tc.subagentMeta = meta;
+        if (typeof details?.["diff"] === "string") tc.diff = details["diff"] as string;
         break;
       }
     }

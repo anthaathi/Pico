@@ -51,6 +51,7 @@ export interface ToolCallInfo {
   partialResult?: string;
   progress?: SubagentProgress;
   subagentMeta?: SubagentMeta;
+  diff?: string;
   previousId?: string;
   contentIndex?: number;
 }

@@ -22,11 +22,13 @@ import { ToolCallGroup } from "./tool-call";
 interface AssistantMessageProps {
   message: ChatMessage;
   isDark: boolean;
+  toolCallsOverride?: ChatMessage["toolCalls"];
 }
 
 export const AssistantMessage = memo(function AssistantMessage({
   message,
   isDark,
+  toolCallsOverride,
 }: AssistantMessageProps) {
   const colorScheme = useColorScheme() ?? "light";
   const colors = Colors[colorScheme];
@@ -37,9 +39,10 @@ export const AssistantMessage = memo(function AssistantMessage({
     message.isStreaming,
   );
 
+  const toolCalls = toolCallsOverride ?? message.toolCalls;
   const hasThinking = !!message.thinking;
   const hasText = !!message.text;
-  const hasToolCalls = !!(message.toolCalls && message.toolCalls.length > 0);
+  const hasToolCalls = !!(toolCalls && toolCalls.length > 0);
   const hasError = !!message.errorMessage;
   const isStreaming = !!message.isStreaming;
   const isThinkingOnly = hasThinking && !hasText && !hasToolCalls && isStreaming;
@@ -70,7 +73,7 @@ export const AssistantMessage = memo(function AssistantMessage({
       {hasText && <View style={styles.textBlock}>{elements}</View>}
 
       {hasToolCalls && (
-        <ToolCallGroup toolCalls={message.toolCalls!} isDark={isDark} />
+        <ToolCallGroup toolCalls={toolCalls!} isDark={isDark} />
       )}
 
       {hasError && (
