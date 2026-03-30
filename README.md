@@ -1,4 +1,4 @@
-# Pi UI
+# Pico
 
 A mobile companion app for [pi-coding-agent](https://github.com/badlogic/pi-mono/). Run the server on your machine, scan the QR code from your phone, and control your coding agent remotely.
 
@@ -87,7 +87,7 @@ The server starts on port **5454** and prints a QR code in the terminal:
 
 ### 5. Connect from the mobile app
 
-1. Install the Pi UI app on your Android device (APK available in releases)
+1. Install the Pico app on your Android device (APK available in releases)
 2. Open the app and tap **Scan QR Code**
 3. Scan the QR code shown in your terminal
 4. Accept the pairing request in the terminal (type `y` and press Enter)
@@ -97,13 +97,13 @@ You're connected! You can now create workspaces, start coding sessions, and inte
 
 ## Screenshots
 
-### Mobile - Workspace & Sessions
+### Mobile — Workspace & Sessions
 <p float="left">
   <img src="docs/screenshots/mobile-workspace-home.png" width="250" alt="Workspace home screen" />
   <img src="docs/screenshots/mobile-workspaces-sessions.jpeg" width="250" alt="Workspaces and session list" />
 </p>
 
-### Mobile - Chat & Settings
+### Mobile — Chat & Settings
 <p float="left">
   <img src="docs/screenshots/mobile-chat-mode.jpeg" width="250" alt="Chat mode with custom model" />
   <img src="docs/screenshots/mobile-settings.jpeg" width="250" alt="Settings - agent, custom models, appearance" />
