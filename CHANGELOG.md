@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.8.0](https://github.com/anthaathi/Pico/compare/v1.7.1...v1.8.0) (2026-03-30)
+
+
+### Features
+
+* full inline subagent viewer with markdown, model info, and contentIndex fix ([a22a2da](https://github.com/anthaathi/Pico/commit/a22a2dac44760289b6e18a4a0302606a910ea111))
+* message list UX improvements ([03aa773](https://github.com/anthaathi/Pico/commit/03aa773eabfdf2dea8c36b064b7f4616f2b33f3f))
+
+
+### Bug Fixes
+
+* install.sh tracks release version in .version file ([67e8da7](https://github.com/anthaathi/Pico/commit/67e8da760bcf7d13480a955b688233cdcc795568))
+
 ## [1.7.1](https://github.com/anthaathi/Pico/compare/v1.7.0...v1.7.1) (2026-03-29)
 
 
