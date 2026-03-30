@@ -20,11 +20,12 @@ const SHUTDOWN_GRACE_SECS: u64 = 5;
 
 pub struct PiAgentProvider {
     pi_binary: String,
+    node_binary: String,
 }
 
 impl PiAgentProvider {
-    pub fn new(pi_binary: String) -> Self {
-        Self { pi_binary }
+    pub fn new(pi_binary: String, node_binary: String) -> Self {
+        Self { pi_binary, node_binary }
     }
 }
 
@@ -44,6 +45,10 @@ impl AgentProvider for PiAgentProvider {
         );
 
         let mut cmd = tokio::process::Command::new(pi_bin);
+        if let Some(node_dir) = std::path::Path::new(&self.node_binary).parent() {
+            let current_path = std::env::var("PATH").unwrap_or_default();
+            cmd.env("PATH", format!("{}:{current_path}", node_dir.display()));
+        }
         cmd.env("PI_OFFLINE", "1");
         cmd.arg("--mode").arg("rpc");
 

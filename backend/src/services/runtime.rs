@@ -5,8 +5,13 @@ use crate::config::AppConfig;
 use crate::models::agent::{AgentRuntimeStatus, RuntimeDependencyStatus};
 
 pub fn get_agent_runtime_status(config: &AppConfig) -> AgentRuntimeStatus {
-    let node = inspect_binary(&config.node_binary());
-    let pi = inspect_binary(&config.pi_binary());
+    let node_bin = config.node_binary();
+    let node = inspect_binary(&node_bin, None);
+
+    let node_dir = std::path::Path::new(&node_bin)
+        .parent()
+        .map(|p| p.to_string_lossy().to_string());
+    let pi = inspect_binary(&config.pi_binary(), node_dir.as_deref());
 
     AgentRuntimeStatus {
         ready: node.installed && pi.installed,
@@ -70,7 +75,7 @@ pub fn log_startup_runtime_status(status: &AgentRuntimeStatus) {
     }
 }
 
-fn inspect_binary(command: &str) -> RuntimeDependencyStatus {
+fn inspect_binary(command: &str, extra_path_dir: Option<&str>) -> RuntimeDependencyStatus {
     let resolved_path = resolve_binary_path(command);
     let configured_path = if command.contains('/') || command.contains('\\') {
         Some(command.to_string())
@@ -78,7 +83,14 @@ fn inspect_binary(command: &str) -> RuntimeDependencyStatus {
         None
     };
 
-    match Command::new(command).arg("--version").output() {
+    let mut cmd = Command::new(command);
+    cmd.arg("--version");
+    if let Some(dir) = extra_path_dir {
+        let current_path = std::env::var("PATH").unwrap_or_default();
+        cmd.env("PATH", format!("{dir}:{current_path}"));
+    }
+
+    match cmd.output() {
         Ok(output) if output.status.success() => RuntimeDependencyStatus {
             command: command.to_string(),
             installed: true,

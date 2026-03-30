@@ -74,8 +74,9 @@ pub async fn serve(cli: Cli, force_qr: bool) -> anyhow::Result<()> {
     }
 
     let pi_binary = config.pi_binary();
-    tracing::info!("Using pi binary: {pi_binary}");
-    let pi_provider = Arc::new(PiAgentProvider::new(pi_binary));
+    let node_binary = config.node_binary();
+    tracing::info!("Using pi binary: {pi_binary}, node binary: {node_binary}");
+    let pi_provider = Arc::new(PiAgentProvider::new(pi_binary, node_binary));
     let agent = AgentManager::new(pi_provider);
     agent.start_idle_cleanup_task();
 
