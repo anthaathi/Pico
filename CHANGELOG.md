@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.9.0](https://github.com/anthaathi/Pico/compare/v1.8.0...v1.9.0) (2026-03-30)
+
+
+### Features
+
+* add [paths] config for node/npm/pi binary resolution ([e7250b6](https://github.com/anthaathi/Pico/commit/e7250b6539550afb4ff5d765db49ad027a201d61))
+* release-please bumps Cargo.toml version for pi-server binary ([bae6172](https://github.com/anthaathi/Pico/commit/bae6172de1a3f40caa059dde772a18aa1cac943c))
+* rename app to Pico with new otter logo ([7794316](https://github.com/anthaathi/Pico/commit/77943166af0aa3c77a9c591b8b658a97a2ae8e4b))
+* set web title to Anthaathi Pico, sync app.json version, bump via release-please ([1623b8d](https://github.com/anthaathi/Pico/commit/1623b8d61c569f0f9734ff75831a174fdc5e8ca5))
+
+
+### Bug Fixes
+
+* remove pi-ui prefix from release tags ([dc150ba](https://github.com/anthaathi/Pico/commit/dc150bac22b8da900eab9a5ae83ed101bc026a0c))
+* use login shell wrapper for systemd/launchd services ([7690212](https://github.com/anthaathi/Pico/commit/76902123fb82b2cdf476e2315bcddbec76d60e45))
+
 ## [1.8.0](https://github.com/anthaathi/Pico/compare/pi-ui-v1.7.1...pi-ui-v1.8.0) (2026-03-30)
 
 
