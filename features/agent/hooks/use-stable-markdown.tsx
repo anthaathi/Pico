@@ -12,9 +12,35 @@ import { lexer, type Token } from "marked";
 import type { useMarkdownHookOptions } from "react-native-marked";
 import { Renderer } from "react-native-marked";
 import type { ReactNode } from "react";
+import type { TextStyle, ViewStyle } from "react-native";
+import { CodePreview } from "../components/message-list/code-preview";
 
 interface ParserLike {
   parse(tokens?: Token[]): ReactNode[];
+}
+
+class StableRenderer extends Renderer {
+  constructor(
+    private readonly blockCodeTextStyle: TextStyle | undefined,
+    private readonly isDark: boolean,
+  ) {
+    super();
+  }
+
+  override code(
+    text: string,
+    language?: string,
+    containerStyle?: ViewStyle,
+  ): ReactNode {
+    return (
+      <CodePreview
+        key={`code-${language ?? "plain"}-${text.length}`}
+        code={text}
+        language={language}
+        isDark={this.isDark}
+      />
+    );
+  }
 }
 
 interface ParserConstructor {
@@ -233,7 +259,17 @@ export function useStableMarkdown(
   const Parser = getParserClass();
 
   const elements = useMemo(() => {
-    const renderer = new Renderer();
+    const blockCodeTextStyle = StyleSheet.flatten([
+      styles.text,
+      styles.codespan,
+      {
+        fontStyle: "normal" as const,
+        fontWeight: "400" as const,
+        padding: 0,
+        backgroundColor: "transparent",
+      },
+    ]) as TextStyle;
+    const renderer = new StableRenderer(blockCodeTextStyle, options.colorScheme === "dark");
     const parser = new Parser({ styles, baseUrl: options.baseUrl, renderer });
     const tokens = lexer(markdownSource, {
       gfm: true,

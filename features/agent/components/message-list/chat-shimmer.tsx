@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 import { Animated, StyleSheet, View } from "react-native";
-
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
 function ShimmerBar({ width, delay = 0 }: { width: `${number}%`; delay?: number }) {
