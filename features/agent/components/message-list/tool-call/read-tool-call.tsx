@@ -20,7 +20,7 @@ export const ReadToolCall = memo(function ReadToolCall({
 }: ReadToolCallProps) {
   const colors = isDark ? Colors.dark : Colors.light;
   const active = isToolActive(tc);
-  const [expanded, setExpanded] = useState(() => active || (!turnCompleted && tc.status === "complete"));
+  const [expanded, setExpanded] = useState(() => active);
   const toggle = useCallback(() => setExpanded((p) => !p), []);
 
   useEffect(() => {

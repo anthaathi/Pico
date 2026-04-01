@@ -162,6 +162,8 @@ function ServerFormFields({
   );
 }
 
+type ServerFormData = Omit<Server, "id"> & { username: string; password: string };
+
 function ServerFormDesktopModal({
   visible,
   onClose,
@@ -173,7 +175,7 @@ function ServerFormDesktopModal({
 }: {
   visible: boolean;
   onClose: () => void;
-  onSave: (data: Omit<Server, "id">) => void;
+  onSave: (data: ServerFormData) => void;
   initial?: Server;
   isDark: boolean;
   loading?: boolean;
@@ -189,8 +191,8 @@ function ServerFormDesktopModal({
     if (visible) {
       setName(initial?.name ?? "");
       setAddress(initial?.address ?? "");
-      setUsername(initial?.username ?? "");
-      setPassword(initial?.password ?? "");
+      setUsername("");
+      setPassword("");
       setShowPassword(false);
     }
   }, [visible, initial]);
@@ -301,7 +303,7 @@ function ServerFormSheet({
 }: {
   visible: boolean;
   onClose: () => void;
-  onSave: (data: Omit<Server, "id">) => void;
+  onSave: (data: ServerFormData) => void;
   initial?: Server;
   isDark: boolean;
   loading?: boolean;
@@ -336,8 +338,8 @@ function ServerFormSheet({
     if (visible) {
       setName(initial?.name ?? "");
       setAddress(initial?.address ?? "");
-      setUsername(initial?.username ?? "");
-      setPassword(initial?.password ?? "");
+      setUsername("");
+      setPassword("");
       setShowPassword(false);
       translateY.value = withTiming(0, TIMING_CONFIG);
       overlayOpacity.value = withTiming(1, TIMING_CONFIG);
@@ -539,7 +541,7 @@ function ServerFormSheet({
 function ServerFormModal(props: {
   visible: boolean;
   onClose: () => void;
-  onSave: (data: Omit<Server, "id">) => void;
+  onSave: (data: ServerFormData) => void;
   initial?: Server;
   isDark: boolean;
   loading?: boolean;
@@ -636,24 +638,16 @@ export default function ServersScreen() {
 
       let connected = false;
 
-      // Has stored token — activate and verify session
       if (auth.hasToken(server.id)) {
         connected = await auth.activateServer(server);
-      }
-
-      // Try login with stored credentials
-      if (!connected && server.username) {
-        const result = await auth.loginToServer(server);
-        connected = result.success;
       }
 
       if (connected) {
         router.replace('/');
       } else {
-        // No valid token and no credentials — prompt to edit/re-enter credentials
         setConnecting(null);
         setEditingServer(server);
-        setLoginError("Not connected. Enter credentials to connect.");
+        setLoginError("Session expired. Enter credentials to reconnect.");
         setFormVisible(true);
       }
     } catch (e) {
@@ -664,22 +658,22 @@ export default function ServersScreen() {
   };
 
   const handleSave = useCallback(
-    async (data: Omit<Server, "id">) => {
+    async (data: Omit<Server, "id"> & { username: string; password: string }) => {
       setLoginLoading(true);
       setLoginError(null);
 
+      const { username, password, ...serverData } = data;
       let server: Server;
       if (editingServer) {
-        await updateServer(editingServer.id, data);
-        server = { ...editingServer, ...data };
+        await updateServer(editingServer.id, serverData);
+        server = { ...editingServer, ...serverData };
       } else {
-        await addServer(data);
-        // get the newly added server (last in list after addServer)
+        await addServer(serverData);
         const servers = useServersStore.getState().servers;
         server = servers[servers.length - 1];
       }
 
-      const result = await loginToServer(server);
+      const result = await loginToServer(server, { username, password });
       setLoginLoading(false);
 
       if (result.success) {

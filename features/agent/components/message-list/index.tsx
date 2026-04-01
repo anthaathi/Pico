@@ -15,20 +15,13 @@ import { ArrowDown } from "lucide-react-native";
 import { useAgentSession } from "@pi-ui/client";
 import { Colors, Fonts } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import type { ChatMessage, ToolCallInfo } from "../../types";
+import type { ChatMessage, ToolCallInfo, TurnFileStats } from "../../types";
 import { UserMessage } from "./user-message";
 import { AssistantMessage } from "./assistant-message";
 import { SystemMessage } from "./system-message";
 
 interface MessageListProps {
   sessionId: string;
-}
-
-interface TurnFileStats {
-  filesEdited: number;
-  filesCreated: number;
-  linesAdded: number;
-  linesRemoved: number;
 }
 
 interface VisibleMessageItem {
@@ -41,8 +34,6 @@ interface VisibleMessageItem {
 
 function mergeConsecutiveToolCalls(
   messages: ChatMessage[],
-  turnDurations: Map<string, number>,
-  turnFileStatsMap: Map<string, TurnFileStats>,
 ): VisibleMessageItem[] {
   const visible: VisibleMessageItem[] = [];
   let anchor: VisibleMessageItem | null = null;
@@ -54,12 +45,10 @@ function mergeConsecutiveToolCalls(
       (!!msg.errorMessage && msg.errorMessage.length > 0) ||
       (!!msg.thinking && msg.thinking.length > 0);
     const toolCalls = msg.toolCalls?.length ? msg.toolCalls : undefined;
-    const turnDurationMs = turnDurations.get(msg.id);
-    const turnFileStats = turnFileStatsMap.get(msg.id);
 
     if (msg.role === "user" || msg.role === "system") {
       anchor = null;
-      visible.push({ key: msg.id, message: msg, turnDurationMs });
+      visible.push({ key: msg.id, message: msg });
       continue;
     }
 
@@ -68,8 +57,8 @@ function mergeConsecutiveToolCalls(
         key: msg.id,
         message: msg,
         toolCalls,
-        turnDurationMs,
-        turnFileStats,
+        turnDurationMs: msg.turnDurationMs,
+        turnFileStats: msg.turnFileStats,
       };
       anchor = msg.isStreaming ? null : item;
       visible.push(item);
@@ -80,8 +69,8 @@ function mergeConsecutiveToolCalls(
       anchor.toolCalls = anchor.toolCalls?.length
         ? [...anchor.toolCalls, ...toolCalls]
         : [...toolCalls];
-      anchor.turnDurationMs = anchor.turnDurationMs ?? turnDurationMs;
-      anchor.turnFileStats = anchor.turnFileStats ?? turnFileStats;
+      anchor.turnDurationMs = anchor.turnDurationMs ?? msg.turnDurationMs;
+      anchor.turnFileStats = anchor.turnFileStats ?? msg.turnFileStats;
     }
   }
 
@@ -109,64 +98,9 @@ export const MessageList = memo(function MessageList({
 
   const prevMessageCountRef = useRef(messages.length);
 
-  const { turnDurations, turnFileStatsMap } = useMemo(() => {
-    const durations = new Map<string, number>();
-    const fileStats = new Map<string, TurnFileStats>();
-    let turnStartTs: number | null = null;
-    let turnStartIdx: number | null = null;
-    for (let i = 0; i < messages.length; i++) {
-      const msg = messages[i]!;
-      if (msg.role === "user") {
-        turnStartTs = msg.timestamp;
-        turnStartIdx = i;
-      } else if (msg.role === "assistant" && msg.stopReason === "stop" && turnStartTs) {
-        durations.set(msg.id, msg.timestamp - turnStartTs);
-        if (turnStartIdx !== null) {
-          const edited = new Set<string>();
-          const created = new Set<string>();
-          let linesAdded = 0;
-          let linesRemoved = 0;
-          for (let j = turnStartIdx; j <= i; j++) {
-            const tc = messages[j]!.toolCalls;
-            if (!tc) continue;
-            for (const call of tc) {
-              if (call.status !== "complete") continue;
-              let path = "";
-              try { path = (JSON.parse(call.arguments || "{}") as Record<string, unknown>).path as string || ""; } catch {}
-              if (!path) continue;
-              if (call.name === "edit") {
-                edited.add(path);
-                const diff = call.diff?.trim() || "";
-                if (diff) {
-                  for (const line of diff.split("\n")) {
-                    if (/^\+(?!\+)/.test(line)) linesAdded++;
-                    if (/^-(?!-)/.test(line)) linesRemoved++;
-                  }
-                }
-              }
-              if (call.name === "write") {
-                created.add(path);
-                try {
-                  const content = (JSON.parse(call.arguments || "{}") as Record<string, unknown>).content as string || "";
-                  if (content) linesAdded += content.split("\n").length;
-                } catch {}
-              }
-            }
-          }
-          if (edited.size > 0 || created.size > 0) {
-            fileStats.set(msg.id, { filesEdited: edited.size, filesCreated: created.size, linesAdded, linesRemoved });
-          }
-        }
-        turnStartTs = null;
-        turnStartIdx = null;
-      }
-    }
-    return { turnDurations: durations, turnFileStatsMap: fileStats };
-  }, [messages]);
-
   const visibleItems = useMemo(
-    () => mergeConsecutiveToolCalls(messages, turnDurations, turnFileStatsMap),
-    [messages, turnDurations, turnFileStatsMap],
+    () => mergeConsecutiveToolCalls(messages),
+    [messages],
   );
   const reversed = useMemo(() => [...visibleItems].reverse(), [visibleItems]);
 
@@ -204,11 +138,15 @@ export const MessageList = memo(function MessageList({
     listRef.current?.scrollToOffset({ offset: 0, animated: true });
   }, []);
 
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+
   const handleLoadMore = useCallback(() => {
-    if (session.hasMoreMessages && !session.isLoadingOlderMessages) {
-      session.loadOlderMessages();
+    const s = sessionRef.current;
+    if (s.hasMoreMessages && !s.isLoadingOlderMessages) {
+      s.loadOlderMessages();
     }
-  }, [session]);
+  }, []);
 
   const renderItem = useCallback(
     ({ item }: ListRenderItemInfo<VisibleMessageItem>) => (
@@ -449,9 +387,9 @@ const styles = StyleSheet.create({
     height: 16,
   },
   summaryBlock: {
-    width: 8,
-    height: 16,
-    borderRadius: 2,
+    width: 5,
+    height: 12,
+    borderRadius: 1,
   },
   summaryText: {
     fontSize: 12,

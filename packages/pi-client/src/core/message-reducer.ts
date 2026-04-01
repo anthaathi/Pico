@@ -72,6 +72,30 @@ const CLEAR_PENDING_EVENTS = new Set([
   "turn_end", "agent_end", "session_process_exited",
 ]);
 
+function stampTurnEndFromBackend(
+  messages: ChatMessage[],
+  stats: { filesEdited?: number; filesCreated?: number; linesAdded?: number; linesRemoved?: number; durationMs?: number },
+): ChatMessage[] {
+  let lastAssistantIdx = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]!.role === "assistant") { lastAssistantIdx = i; break; }
+  }
+  if (lastAssistantIdx === -1) return messages;
+  const msg = messages[lastAssistantIdx]!;
+  if (msg.turnDurationMs !== undefined) return messages;
+
+  const hasFileStats = (stats.filesEdited ?? 0) > 0 || (stats.filesCreated ?? 0) > 0;
+  const next = [...messages];
+  next[lastAssistantIdx] = {
+    ...msg,
+    turnDurationMs: stats.durationMs ?? 0,
+    turnFileStats: hasFileStats
+      ? { filesEdited: stats.filesEdited ?? 0, filesCreated: stats.filesCreated ?? 0, linesAdded: stats.linesAdded ?? 0, linesRemoved: stats.linesRemoved ?? 0 }
+      : undefined,
+  };
+  return next;
+}
+
 function findLastStreamingIndex(messages: ChatMessage[]): number {
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i]!.role === "assistant" && messages[i]!.isStreaming) return i;
@@ -160,7 +184,7 @@ export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnve
   const event = envelope.data;
   const eventType = envelope.type;
 
-  let { messages, isStreaming, mode, pendingExtensionUiRequest } = state;
+  let { messages, isStreaming, mode, pendingExtensionUiRequest, agentState } = state;
 
   if (CLEAR_PENDING_EVENTS.has(eventType)) {
     pendingExtensionUiRequest = null;
@@ -190,8 +214,24 @@ export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnve
       break;
     }
 
+    case "turn_end": {
+      break;
+    }
+
     case "agent_end": {
       isStreaming = false;
+      let lastAssist: ChatMessage | undefined;
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i]!.role === "assistant") { lastAssist = messages[i]; break; }
+      }
+      if (lastAssist?.stopReason === "stop") {
+        const raw = (event as unknown as Record<string, unknown>)["turnStats"] as
+          | { filesEdited?: number; filesCreated?: number; linesAdded?: number; linesRemoved?: number; durationMs?: number }
+          | undefined;
+        if (raw) {
+          messages = stampTurnEndFromBackend(messages, raw);
+        }
+      }
       messages = updateLastStreaming(messages, (msg) => ({ ...msg, isStreaming: false }));
       break;
     }
@@ -353,7 +393,14 @@ export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnve
     case "message_end": {
       if (event.type !== "message_end") break;
       const endMsg = event.message as unknown as Record<string, unknown> | undefined;
-      messages = updateLastStreaming(messages, (msg) => {
+      let endIdx = findLastStreamingIndex(messages);
+      if (endIdx === -1) {
+        for (let i = messages.length - 1; i >= 0; i--) {
+          if (messages[i]!.role === "assistant") { endIdx = i; break; }
+        }
+      }
+      if (endIdx !== -1) {
+        const msg = messages[endIdx]!;
         const updated: ChatMessage = {
           ...msg,
           isStreaming: false,
@@ -374,8 +421,10 @@ export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnve
           const toolCalls = buildToolCallsFromContent(content, msg.toolCalls, "pending");
           if (toolCalls.length > 0) updated.toolCalls = toolCalls;
         }
-        return updated;
-      });
+        const next = [...messages];
+        next[endIdx] = updated;
+        messages = next;
+      }
       break;
     }
 
@@ -455,7 +504,8 @@ export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnve
           mode = data.mode;
         }
       }
-      return { ...state, messages, isStreaming, mode, pendingExtensionUiRequest, agentState: data };
+      agentState = data;
+      break;
     }
 
     case "extension_ui_request": {
@@ -481,7 +531,7 @@ export function reduceStreamEvent(state: SessionState, envelope: StreamEventEnve
     }
   }
 
-  return { ...state, messages, isStreaming, mode, pendingExtensionUiRequest };
+  return { ...state, messages, isStreaming, mode, pendingExtensionUiRequest, agentState };
 }
 
 function updateToolCall(
@@ -574,6 +624,9 @@ function convertSingleMessage(msg: Record<string, unknown>, index: number): Chat
     const thinking = content.filter(c => c["type"] === "thinking").map(c => c["thinking"] as string ?? "").join("");
     const toolCalls = buildToolCallsFromContent(content, undefined, "complete");
 
+    const backendStats = msg["turnFileStats"] as Record<string, number> | undefined;
+    const backendDuration = typeof msg["turnDurationMs"] === "number" ? msg["turnDurationMs"] as number : undefined;
+
     return {
       id: stableId(msg, "assistant", index),
       entryId: extractMessageEntryId(msg),
@@ -589,6 +642,13 @@ function convertSingleMessage(msg: Record<string, unknown>, index: number): Chat
       responseId: msg["responseId"] as string | undefined,
       usage: extractUsage(msg),
       stopReason: msg["stopReason"] as ChatMessage["stopReason"],
+      turnDurationMs: backendDuration,
+      turnFileStats: backendStats ? {
+        filesEdited: backendStats["filesEdited"] ?? 0,
+        filesCreated: backendStats["filesCreated"] ?? 0,
+        linesAdded: backendStats["linesAdded"] ?? 0,
+        linesRemoved: backendStats["linesRemoved"] ?? 0,
+      } : undefined,
     };
   }
 

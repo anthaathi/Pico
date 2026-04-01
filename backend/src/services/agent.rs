@@ -13,7 +13,7 @@ use utoipa::ToSchema;
 use super::provider::{
     AgentCapability, AgentCommand, AgentProcessHandle, AgentProvider, AgentSessionConfig,
     AgentStreamEvent, CommandResponse, ExtensionUiRequestKind, SessionSnapshot,
-    StreamingBehavior,
+    StreamingBehavior, TurnStats,
 };
 
 const MAX_BUFFER_SIZE: usize = 10_000;
@@ -651,7 +651,7 @@ impl AgentManager {
         tokio::spawn(async move {
             let mut is_streaming = false;
 
-            while let Some(event) = event_rx.recv().await {
+            while let Some(mut event) = event_rx.recv().await {
                 let is_exit = matches!(event, AgentStreamEvent::SessionProcessExited);
 
                 let current_session_id = session_id_ref.lock().unwrap().clone();
@@ -663,6 +663,14 @@ impl AgentManager {
                     | AgentStreamEvent::SessionProcessExited => false,
                     _ => is_streaming,
                 };
+
+                if matches!(&event, AgentStreamEvent::AgentEnd { .. }) {
+                    let buf = event_buffer.lock().await;
+                    let stats = compute_turn_stats_from_buffer(&buf, &current_session_id);
+                    if let AgentStreamEvent::AgentEnd { ref mut turn_stats, .. } = event {
+                        *turn_stats = stats;
+                    }
+                }
 
                 update_pending_extension_ui(&sessions, &current_session_id, &event).await;
 
@@ -1221,6 +1229,130 @@ async fn emit_active_sessions(
 
 fn stream_event_to_json(event: &AgentStreamEvent) -> (String, Value) {
     event.to_json()
+}
+
+fn compute_turn_stats_from_buffer(buffer: &std::collections::VecDeque<StreamEvent>, session_id: &str) -> Option<TurnStats> {
+    use std::collections::HashSet;
+
+    let mut files_edited = HashSet::new();
+    let mut files_created = HashSet::new();
+    let mut lines_added: u32 = 0;
+    let mut lines_removed: u32 = 0;
+
+    let mut agent_start_ts: Option<i64> = None;
+    let turn_events: Vec<&StreamEvent> = {
+        let mut events = Vec::new();
+        for evt in buffer.iter().rev() {
+            if evt.session_id != session_id {
+                continue;
+            }
+            if evt.event_type == "agent_start" {
+                agent_start_ts = Some(evt.timestamp);
+                break;
+            }
+            events.push(evt);
+        }
+        events.reverse();
+        events
+    };
+    let now_ms = chrono::Utc::now().timestamp_millis();
+    let duration_ms = agent_start_ts.map(|ts| now_ms - ts).unwrap_or(0);
+
+    let mut tool_call_paths: HashMap<String, String> = HashMap::new();
+    let mut tool_call_content: HashMap<String, String> = HashMap::new();
+    for evt in &turn_events {
+        if evt.event_type == "tool_execution_start" {
+            let data = &evt.data;
+            let call_id = data.get("toolCallId").and_then(|v| v.as_str()).unwrap_or("");
+            if call_id.is_empty() { continue; }
+            let path = extract_path_from_args(data);
+            if !path.is_empty() {
+                tool_call_paths.insert(call_id.to_string(), path);
+            }
+            if let Some(content) = extract_content_from_args(data) {
+                tool_call_content.insert(call_id.to_string(), content);
+            }
+        }
+    }
+
+    for evt in &turn_events {
+        if evt.event_type != "tool_execution_end" {
+            continue;
+        }
+        let data = &evt.data;
+        let tool_name = data.get("toolName").and_then(|v| v.as_str()).unwrap_or("");
+        let is_error = data.get("isError").and_then(|v| v.as_bool()).unwrap_or(false);
+        if is_error {
+            continue;
+        }
+        let call_id = data.get("toolCallId").and_then(|v| v.as_str()).unwrap_or("");
+
+        match tool_name {
+            "edit" => {
+                if let Some(path) = tool_call_paths.get(call_id) {
+                    files_edited.insert(path.clone());
+                }
+                if let Some(diff) = data
+                    .get("result")
+                    .and_then(|r| r.get("details"))
+                    .and_then(|d| d.get("diff"))
+                    .and_then(|v| v.as_str())
+                {
+                    for line in diff.lines() {
+                        if line.starts_with('+') && !line.starts_with("++") {
+                            lines_added += 1;
+                        }
+                        if line.starts_with('-') && !line.starts_with("--") {
+                            lines_removed += 1;
+                        }
+                    }
+                }
+            }
+            "write" => {
+                if let Some(path) = tool_call_paths.get(call_id) {
+                    files_created.insert(path.clone());
+                }
+                if let Some(content) = tool_call_content.get(call_id) {
+                    lines_added += content.lines().count() as u32;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Some(TurnStats {
+        files_edited: files_edited.len() as u32,
+        files_created: files_created.len() as u32,
+        lines_added,
+        lines_removed,
+        duration_ms,
+    })
+}
+
+fn extract_path_from_args(data: &Value) -> String {
+    if let Some(args) = data.get("args") {
+        if let Some(path) = args.get("path").and_then(|v| v.as_str()) {
+            return path.to_string();
+        }
+    }
+    let args_str = data.get("args").and_then(|v| v.as_str()).unwrap_or("");
+    if let Ok(parsed) = serde_json::from_str::<Value>(args_str) {
+        if let Some(path) = parsed.get("path").and_then(|v| v.as_str()) {
+            return path.to_string();
+        }
+    }
+    String::new()
+}
+
+fn extract_content_from_args(data: &Value) -> Option<String> {
+    if let Some(args) = data.get("args") {
+        if let Some(content) = args.get("content").and_then(|v| v.as_str()) {
+            return Some(content.to_string());
+        }
+    }
+    let args_str = data.get("args").and_then(|v| v.as_str())?;
+    let parsed: Value = serde_json::from_str(args_str).ok()?;
+    parsed.get("content").and_then(|v| v.as_str()).map(|s| s.to_string())
 }
 
 const SESSION_ONLY_EVENT_TYPES: &[&str] = &[

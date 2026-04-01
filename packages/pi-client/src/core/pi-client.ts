@@ -213,7 +213,7 @@ export class PiClient {
   // Load older messages (pagination)
   // ---------------------------------------------------------------------------
 
-  async loadOlderMessages(sessionId: string, limit = 20): Promise<void> {
+  async loadOlderMessages(sessionId: string, limit = 50): Promise<void> {
     const subject = this._getOrCreateSessionSubject(sessionId);
     const current = subject.getValue();
     if (!current.hasMoreMessages || current.isLoadingOlderMessages) return;
@@ -503,7 +503,7 @@ export class PiClient {
     const subject = this._getOrCreateSessionSubject(sessionId);
 
     try {
-      const result = await this.api.getSessionHistory(sessionId);
+      const result = await this.api.getSessionHistory(sessionId, { limit: 50 });
       const rawMessages = result.messages as Record<string, string>[];
       const converted = convertRawMessages(rawMessages);
       const current = subject.getValue();
@@ -515,11 +515,12 @@ export class PiClient {
         oldestEntryId: result.oldest_entry_id ?? null,
         isReady: true,
         isLoading: false,
+        isLoadingOlderMessages: false,
         isStreaming: this._activeSessionIds.has(sessionId) ? true : current.isStreaming,
       });
     } catch {
       const current = subject.getValue();
-      subject.next({ ...current, isReady: true, isLoading: false });
+      subject.next({ ...current, isReady: true, isLoading: false, isLoadingOlderMessages: false });
     }
   }
 

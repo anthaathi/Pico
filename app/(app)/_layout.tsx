@@ -188,9 +188,12 @@ export default function AppLayout() {
     });
   }, [refreshActiveServerSession]);
 
-  const onApiAuthError = useCallback(async () => {
-    // Token expired on an API call (prompt, steer, etc.) — refresh and retry
-    return refreshActiveServerSession();
+  const onApiAuthError = useCallback(async (): Promise<string | null> => {
+    const ok = await refreshActiveServerSession();
+    if (!ok) return null;
+    const state = useAuthStore.getState();
+    const sid = state.activeServerId;
+    return sid ? state.tokens[sid]?.accessToken ?? null : null;
   }, [refreshActiveServerSession]);
 
   const piClientConfig = useMemo<PiClientConfig>(

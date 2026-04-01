@@ -83,8 +83,6 @@ export function QrScanner({ visible, onClose, onNeedNewWorkspace }: QrScannerPro
           id: serverId,
           name: existingServer?.name || params.hostname || ip,
           address,
-          username: existingServer?.username ?? "",
-          password: existingServer?.password ?? "",
         });
         reset();
         onClose();

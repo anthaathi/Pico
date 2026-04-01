@@ -8,8 +8,6 @@ export interface Server {
   id: string;
   name: string;
   address: string;
-  username: string;
-  password: string;
 }
 
 interface ServersState {
@@ -60,8 +58,12 @@ export const useServersStore = create<ServersState>((set, get) => ({
   loaded: false,
 
   load: async () => {
-    const servers = (await readFromStore()).map((s) => ({ ...s, address: stripTrailingSlashes(s.address) }));
+    const raw = await readFromStore();
+    const servers = raw.map(({ username, password, ...s }: any) => ({ ...s, address: stripTrailingSlashes(s.address) }));
     set({ servers, loaded: true });
+    if (raw.some((s: any) => s.username || s.password)) {
+      await writeToStore(servers);
+    }
   },
 
   addServer: async (server) => {

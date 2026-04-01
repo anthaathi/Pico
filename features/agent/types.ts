@@ -76,6 +76,13 @@ export interface MessageUsageInfo {
   currency?: string;
 }
 
+export interface TurnFileStats {
+  filesEdited: number;
+  filesCreated: number;
+  linesAdded: number;
+  linesRemoved: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant" | "system";
@@ -91,6 +98,8 @@ export interface ChatMessage {
   responseId?: string;
   usage?: MessageUsageInfo;
   stopReason?: string;
+  turnDurationMs?: number;
+  turnFileStats?: TurnFileStats;
   systemKind?: "bashExecution" | "event";
   command?: string;
   exitCode?: number;

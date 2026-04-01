@@ -62,7 +62,7 @@ interface AuthState {
   remote: boolean;
 
   load: () => Promise<void>;
-  loginToServer: (server: Server) => Promise<{ success: boolean; error?: string }>;
+  loginToServer: (server: Server, credentials: { username: string; password: string }) => Promise<{ success: boolean; error?: string }>;
   pairWithServer: (
     baseUrl: string,
     qrId: string,
@@ -424,12 +424,12 @@ export const useAuthStore = create<AuthState>((set, get) => {
       }
     },
 
-    loginToServer: async (server: Server) => {
+    loginToServer: async (server: Server, credentials: { username: string; password: string }) => {
       const result = await apiLogin({
         baseUrl: server.address,
         body: {
-          username: server.username,
-          password: server.password,
+          username: credentials.username,
+          password: credentials.password,
         },
       });
 

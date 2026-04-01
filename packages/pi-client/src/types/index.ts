@@ -61,7 +61,7 @@ export interface PiClientConfig {
   serverUrl: string;
   accessToken: string;
   onAuthError?: () => void;
-  onApiAuthError?: () => Promise<boolean>;
+  onApiAuthError?: () => Promise<string | null>;
   transport?: "sse" | "ws";
   reconnectBaseMs?: number;
   reconnectMaxMs?: number;

@@ -259,6 +259,16 @@ pub struct ToolContent {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TurnStats {
+    pub files_edited: u32,
+    pub files_created: u32,
+    pub lines_added: u32,
+    pub lines_removed: u32,
+    pub duration_ms: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ModelInfo {
     pub id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -534,10 +544,12 @@ pub enum AgentStreamEvent {
     #[serde(rename = "agent_start")]
     AgentStart,
 
-    #[serde(rename = "agent_end")]
+    #[serde(rename = "agent_end", rename_all = "camelCase")]
     AgentEnd {
         #[serde(default)]
         messages: Value,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        turn_stats: Option<TurnStats>,
     },
 
     #[serde(rename = "turn_start")]
@@ -549,6 +561,8 @@ pub enum AgentStreamEvent {
         message: Option<Value>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         tool_results: Option<Value>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        turn_stats: Option<TurnStats>,
     },
 
     #[serde(rename = "message_start")]

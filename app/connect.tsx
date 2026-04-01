@@ -101,8 +101,6 @@ export default function DirectConnectScreen() {
         id: serverId,
         name: existingServer?.name || connectParams.hostname || "Pico Server",
         address: baseUrl,
-        username: existingServer?.username ?? "",
-        password: existingServer?.password ?? "",
       });
 
       await fetchWorkspaces();

@@ -1,4 +1,3 @@
-import { client as defaultClient } from "../generated/client.gen";
 import * as sdk from "../generated/sdk.gen";
 import type {
   AgentSessionInfo,
@@ -36,13 +35,6 @@ import type {
 } from "../generated/types.gen";
 import type { ImageContent } from "../types/stream-events";
 
-interface AuthRetryOptions {
-  _authRetry?: boolean;
-  _authRetryRequest?: Request;
-  fetch?: (request: Request) => Promise<Response>;
-  url?: string;
-}
-
 function unwrapResult<T>(result: { data?: unknown; error?: unknown }): T {
   if (result.error !== undefined && result.error !== null) {
     const errBody = result.error;
@@ -70,64 +62,11 @@ function unwrapResult<T>(result: { data?: unknown; error?: unknown }): T {
 export class ApiClient {
   private _serverUrl: string;
   private _accessToken: string;
-  private _onAuthError?: () => Promise<boolean>;
+  private _onAuthError?: () => Promise<string | null>;
 
   constructor(serverUrl: string, accessToken: string) {
     this._serverUrl = serverUrl;
     this._accessToken = accessToken;
-    defaultClient.setConfig({ baseUrl: serverUrl });
-    defaultClient.interceptors.request.use((request: Request, opts: AuthRetryOptions) => {
-      if (this._accessToken) {
-        request.headers.set("Authorization", `Bearer ${this._accessToken}`);
-      } else {
-        request.headers.delete("Authorization");
-        request.headers.delete("authorization");
-      }
-
-      try {
-        opts._authRetryRequest = request.clone();
-      } catch {
-        opts._authRetryRequest = undefined;
-      }
-
-      return request;
-    });
-
-    defaultClient.interceptors.response.use(
-      async (response: Response, request: Request, opts: AuthRetryOptions) => {
-        if (response.status !== 401 || opts._authRetry || !this._onAuthError) {
-          return response;
-        }
-
-        const path = opts.url ?? "";
-        if (path.includes("/auth/")) return response;
-
-        const refreshed = await this._onAuthError();
-        if (!refreshed) return response;
-
-        const retrySource = opts._authRetryRequest;
-        const retryHeaders = new Headers(retrySource?.headers ?? request.headers);
-        retryHeaders.set("Authorization", `Bearer ${this._accessToken}`);
-
-        const retryRequest = retrySource
-          ? new Request(retrySource, { headers: retryHeaders, signal: request.signal })
-          : new Request(request.url, {
-              method: request.method,
-              headers: retryHeaders,
-              body:
-                request.method !== "GET" && request.method !== "HEAD"
-                  ? request.body
-                  : undefined,
-              signal: request.signal,
-            });
-
-        try {
-          return await (opts.fetch ?? fetch)(retryRequest);
-        } catch {
-          return response;
-        }
-      },
-    );
   }
 
   get serverUrl(): string {
@@ -141,14 +80,13 @@ export class ApiClient {
   updateConfig(serverUrl: string, accessToken: string): void {
     this._serverUrl = serverUrl;
     this._accessToken = accessToken;
-    defaultClient.setConfig({ baseUrl: serverUrl });
   }
 
   updateToken(accessToken: string): void {
     this._accessToken = accessToken;
   }
 
-  setAuthErrorHandler(handler: () => Promise<boolean>): void {
+  setAuthErrorHandler(handler: () => Promise<string | null>): void {
     this._onAuthError = handler;
   }
 
@@ -176,11 +114,12 @@ export class ApiClient {
       return response;
     }
 
-    const refreshed = await this._onAuthError();
-    if (!refreshed) return response;
+    const newToken = await this._onAuthError();
+    if (!newToken) return response;
 
+    this._accessToken = newToken;
     const retryHeaders = new Headers(init?.headers);
-    retryHeaders.set("Authorization", `Bearer ${this._accessToken}`);
+    retryHeaders.set("Authorization", `Bearer ${newToken}`);
 
     return fetch(input, {
       ...init,
@@ -1038,8 +977,9 @@ export class ApiClient {
         xhr.onabort = () => reject(new Error("Upload cancelled"));
         xhr.onload = async () => {
           if (xhr.status === 401 && allowRetry && this._onAuthError) {
-            const refreshed = await this._onAuthError();
-            if (refreshed) {
+            const newToken = await this._onAuthError();
+            if (newToken) {
+              this._accessToken = newToken;
               execute(false).then(resolve).catch(reject);
               return;
             }
