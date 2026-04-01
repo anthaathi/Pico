@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.0](https://github.com/anthaathi/Pico/compare/v1.11.0...v1.12.0) (2026-04-01)
+
+
+### Features
+
+* release unified stream and tool result improvements ([c06ee76](https://github.com/anthaathi/Pico/commit/c06ee76fa0de0d15158e2f0edaeed2a748ebac08))
+
 ## [1.11.0](https://github.com/anthaathi/Pico/compare/v1.10.1...v1.11.0) (2026-03-30)
 
 

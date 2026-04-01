@@ -2,7 +2,7 @@
   "expo": {
     "name": "Pico",
     "slug": "pi-ui",
-    "version": "1.11.0",
+    "version": "1.12.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "piui",
